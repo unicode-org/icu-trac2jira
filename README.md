@@ -1,5 +1,4 @@
 to use:
-
 - npm i
 - create a `config.json` as follows:
 
@@ -31,3 +30,7 @@ to use:
     }
 }
 ```
+
+- Copyright (C) 2016 and later: Unicode, Inc. and others.
+- License & terms of use: http://www.unicode.org/copyright.html
+- see [LICENSE](LICENSE)
