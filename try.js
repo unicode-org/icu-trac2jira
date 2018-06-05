@@ -12,7 +12,10 @@ const jira = new JiraApi(config.jira);
 const jira = new (require('jira-client')) (require('./config.json').jira);
 */
 
+// Promise for main Trac DB
 const dbPromise = sqlite.open(config.db.path, { cached: true });
+
+
 
 // LIMIT
 const allTickets = dbPromise.then(async (db) => db.all('select * from ticket where id>0 and id <3'));

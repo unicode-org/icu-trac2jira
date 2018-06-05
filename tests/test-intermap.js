@@ -14,11 +14,19 @@ const testmap = [
 ];
 
 test('parse', t => {
-    const data = fs.readFileSync('./tests/InterMapTxt.txt', 'utf-8').toString();
-    t.ok(data);
-    map = new InterMap(data);
-    t.ok(map);
-    t.ok(map.map);
-    t.ok(map.map[0].id);
-    t.end();
+  const data = fs.readFileSync('./tests/InterMapTxt.txt', 'utf-8').toString();
+  t.ok(data);
+  map = new InterMap(data);
+  t.ok(map);
+  t.ok(map.map);
+  t.ok(map.map[0].id);
+  t.end();
+});
+
+test('obj', t => {
+  map = new InterMap(testmap);
+  t.ok(map);
+  t.ok(map.map);
+  t.ok(map.map[0].id);
+  t.end();
 });

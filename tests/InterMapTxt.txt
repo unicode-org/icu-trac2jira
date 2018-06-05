@@ -4,7 +4,7 @@
 
 This page was modelled after the MeatBall:InterMapTxt page.
 In addition, an optional comment is allowed after the mapping.
-
+ 
 
 This page is interpreted in a special way by Trac, in order to support
 !InterWiki links in a flexible and dynamic way.

@@ -1,0 +1,5 @@
+{
+	"coverage": ["../.nyc_output/lcov.info"],
+	"automaticallyShow": true,
+	"ignore": ["*.json"]
+}
