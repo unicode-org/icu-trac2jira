@@ -1,0 +1,95 @@
+= InterMapTxt =
+
+== This is the place for defining InterWiki prefixes ==
+
+This page was modelled after the MeatBall:InterMapTxt page.
+In addition, an optional comment is allowed after the mapping.
+
+
+This page is interpreted in a special way by Trac, in order to support
+!InterWiki links in a flexible and dynamic way.
+
+The code block after the first line separator in this page
+will be interpreted as a list of !InterWiki specifications:
+{{{
+prefix <space> URL [<space> # comment]
+}}}
+
+By using `$1`, `$2`, etc. within the URL, it is possible to create 
+InterWiki links which support multiple arguments, e.g. Trac:ticket:40.
+The URL itself can be optionally followed by a comment, 
+which will subsequently be used for decorating the links 
+using that prefix.
+
+New !InterWiki links can be created by adding to that list, in real time.
+Note however that ''deletions'' are also taken into account immediately,
+so it may be better to use comments for disabling prefixes.
+
+Also note that !InterWiki prefixes are case insensitive.
+
+
+== List of Active Prefixes ==
+
+[[InterWiki]]
+
+
+----
+
+== Prefix Definitions ==
+
+{{{
+PEP     http://www.python.org/peps/pep-$1.html                                       # Python Enhancement Proposal 
+Trac-ML  http://thread.gmane.org/gmane.comp.version-control.subversion.trac.general/ # Message $1 in Trac Mailing List
+trac-dev http://thread.gmane.org/gmane.comp.version-control.subversion.trac.devel/   # Message $1 in Trac Development Mailing List
+
+Mercurial http://www.selenic.com/mercurial/wiki/index.cgi/ # the wiki for the Mercurial distributed SCM
+RFC       http://www.ietf.org/rfc/rfc$1.txt # IETF's RFC $1
+
+#
+# A arbitrary pick of InterWiki prefixes...
+#
+Acronym          http://www.acronymfinder.com/af-query.asp?String=exact&Acronym=
+C2find           http://c2.com/cgi/wiki?FindPage&value=
+Cache            http://www.google.com/search?q=cache:
+CPAN             http://search.cpan.org/perldoc?
+DebianBug        http://bugs.debian.org/
+DebianPackage    http://packages.debian.org/
+Dictionary       http://www.dict.org/bin/Dict?Database=*&Form=Dict1&Strategy=*&Query=
+Google           http://www.google.com/search?q=
+GoogleGroups     http://groups.google.com/groups?q=
+JargonFile       http://downlode.org/perl/jargon-redirect.cgi?term=
+MeatBall         http://www.usemod.com/cgi-bin/mb.pl?
+MetaWiki         http://sunir.org/apps/meta.pl?
+MetaWikiPedia    http://meta.wikipedia.org/wiki/
+MoinMoin         http://moinmoin.wikiwikiweb.de/
+WhoIs            http://www.whois.sc/
+Why              http://clublet.com/c/c/why?
+c2Wiki             http://c2.com/cgi/wiki?
+WikiPedia        http://en.wikipedia.org/wiki/
+
+# icu local things
+ChromeBug        http://code.google.com/p/chromium/issues/detail?id= # Chromium issue $1
+CldrBug          https://unicode.org/cldr/trac/ticket/ # CLDR Bug $1
+UliBug          http://unicode.org/uli/trac/ticket/ # ULI Bug $1
+BCP              http://www.rfc-editor.org/rfc/bcp/bcp$1.txt # IETF's BCP $1
+SunBug           http://bugs.sun.com/view_bug.do?bug_id= # Sun bug $1
+EclipseBug       https://bugs.eclipse.org/bugs/show_bug.cgi?id=
+GentooBug    http://bugs.gentoo.org/show_bug.cgi?id= # Gentoo #$1
+RedHatBug    https://bugzilla.redhat.com/show_bug.cgi?id= # RedHat #$1
+LaunchpadBug  https://bugs.launchpad.net/bugs/  #Launchpad #$1
+IcuBug          ticket:  # #$1
+StackOverflow http://stackoverflow.com/questions/$1 # StackOverflow question #$1
+SFMail http://sourceforge.net/mailarchive/message.php?msg_id=$1 # sf.net mail archive #$1
+WebKitBug   https://bugs.webkit.org/show_bug.cgi?id=$1 # WebKit bug #$1
+FreeDesktopBug   https://bugs.freedesktop.org/show_bug.cgi?id=$1 # freedesktop.org bug #$1
+HarfBuzz  http://www.freedesktop.org/wiki/Software/HarfBuzz/$1 # HarfBuzz $1
+# Internal to IBM:
+InternalIbm      http://icu.sanjose.ibm.com/g/ # IBM is internally tracking this as ICU issue # $1
+GnomeBug https://bugzilla.gnome.org/show_bug.cgi?id=$1 # Gnome bug #$1
+# Internal to Google:
+GoogleIssue      http://b/issue?id= # Google b/ issue
+MozillaBug   https://bugzilla.mozilla.org/show_bug.cgi?id= # Mozilla #$1
+
+# just for fun
+XKCD      http://xkcd.com/$1  # XKCD #$1
+}}}
