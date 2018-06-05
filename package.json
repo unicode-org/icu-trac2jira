@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "tap tests/test-*.js --cov --100",
+    "test": "tap tests/test-*.js --cov",
     "posttest": "tap --coverage-report=text-lcov > .nyc_output/lcov.info"
   },
   "keywords": [],
