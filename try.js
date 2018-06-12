@@ -20,12 +20,15 @@ const Old2New = require('./lib/old2new');
 const o2n = geto2n(config.old2new.path);
 
 // LIMIT
-const allTickets = dbPromise.then(async (db) => db.all('select * from ticket where id=3'));
+const allTickets = dbPromise.then(async (db) => db.all('select * from ticket where id=13392'));
+
+const allComponents = dbPromise.then(async (db) => db.all('select * from component'));
 
 const ticketCount = dbPromise.then(async (db) => db.get('select count(*) as count from ticket'));
 
 const project = jira.getProject(config.project.name);
 const issueTypes = jira.listIssueTypes();
+const components = jira.listComponents(config.project.name);
 
 const nameToIssueType = issueTypes.then(async (issueTypes) => issueTypes.reduce((p,v) => {
     p[v.name] = v;
@@ -38,6 +41,19 @@ const nameToFieldId = allFields.then(async (allFields) => allFields.reduce((p,v)
     p[v.name] = v;
     return p;
 }, {}));
+
+const _nameToComponent = components.then(async (allFields) => allFields.reduce((p,v) => {
+    p[v.name] = v;
+    return p;
+}, {}));
+
+async function nameToComponentId(name) {
+    const n2c = await _nameToComponent;
+    const info = n2c[name];
+    if(!info) return null;
+    const {id} = info;
+    if(id) return id;
+}
 
 /**
  * Start up the 'old2new' machinery. Read existing DB if it exists.
@@ -122,6 +138,30 @@ async function doit() {
     // return;
     // console.dir(await nameToFieldId);
     // console.log(await InterMapTxt);
+    // console.log(await components);
+    // console.dir(await _nameToComponent);
+// return;
+    let addedComps = 0;
+    for(component of (await allComponents)) {
+        const {name,description} = component;
+        const existingId = await nameToComponentId(name);
+        if(!existingId) {
+            const body = {
+                name,
+                description,
+                project: config.project.name,
+                projectId
+            };
+            console.log('adding component',name);
+            // hack: add it back to the cache
+            await jira.addNewComponent(body);
+            addedComps++
+        }
+    }
+    if(addedComps) {
+        throw Error(`Just added ${addedComps} components ,please try again`);
+    }
+
     // return;
     
     const {count} = await ticketCount;
@@ -132,7 +172,7 @@ async function doit() {
         const {id, summary, description} = ticket;
         // make custom fields look like real fields
         Object.assign(ticket, await custom(id));
-        const {owner, private,sensitive, reporter} = ticket;
+        const {component, owner, private,sensitive, reporter} = ticket;
         const hide = (/*private==='y' ||*/ sensitive == 1);
         const jiraId = (await o2n).getJiraId(id);
         if(jiraId) {
@@ -151,7 +191,8 @@ async function doit() {
             project: {id: projectId},
             issuetype: {id: (await forTracType(ticket.type)).id },
             reporter: getReporter(reporter),
-            assignee: getReporter(owner)
+            assignee: getReporter(owner),
+            components: [ { id: await nameToComponentId(component)  } ]
         };
         // set the trac id
         fields[await getFieldIdFromMap('id')] = id.toString();

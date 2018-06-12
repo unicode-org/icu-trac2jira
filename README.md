@@ -21,6 +21,11 @@ to use:
     "mapFields": {
         "id": "tracid"
     },
+    "old2new": {
+        "path": "../trac-old2new.json",
+        "traclinks": "../traclinks.d",
+        "base": "https://unicode-org.atlassian.net/browse"
+    },
     "mapTypes": {
         "defect": "Bug",
         "enhancement": "New Feature",
@@ -30,6 +35,10 @@ to use:
     }
 }
 ```
+
+to make the trac links:
+
+`node dumplink.js`
 
 - Copyright (C) 2016 and later: Unicode, Inc. and others.
 - License & terms of use: http://www.unicode.org/copyright.html
