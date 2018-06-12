@@ -175,6 +175,7 @@ async function doit() {
         const {component, owner, private,sensitive, reporter} = ticket;
         const hide = (/*private==='y' ||*/ sensitive == 1);
         const jiraId = (await o2n).getJiraId(id);
+        console.dir(ticket);
         if(jiraId) {
             console.log(`Skipping #${id}- already as id ${jiraId}`);
             continue;
@@ -184,7 +185,6 @@ async function doit() {
             console.log(`Skipping #${id}: private=${private}, sensitive=${sensitive}`);
             continue;
         }
-        console.dir(ticket);
         const fields={
             summary,
             description,
