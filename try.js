@@ -1,7 +1,7 @@
 // With ES6
 const JiraApi = require('jira-client');
 const sqlite = require('sqlite');
-
+const isFilePromise = require('is-file-promise');
 const config = require('./config.json');
 
 const InterMap = require('./lib/intermap');
@@ -14,11 +14,13 @@ const jira = new (require('jira-client')) (require('./config.json').jira);
 
 // Promise for main Trac DB
 const dbPromise = sqlite.open(config.db.path, { cached: true });
+const Old2New = require('./lib/old2new');
 
 
+const o2n = geto2n(config.old2new.path);
 
 // LIMIT
-const allTickets = dbPromise.then(async (db) => db.all('select * from ticket where id>0 and id <3'));
+const allTickets = dbPromise.then(async (db) => db.all('select * from ticket where id=3'));
 
 const ticketCount = dbPromise.then(async (db) => db.get('select count(*) as count from ticket'));
 
@@ -36,6 +38,25 @@ const nameToFieldId = allFields.then(async (allFields) => allFields.reduce((p,v)
     p[v.name] = v;
     return p;
 }, {}));
+
+/**
+ * Start up the 'old2new' machinery. Read existing DB if it exists.
+ * @param {String} path 
+ */
+async function geto2n(path) {
+    const o2n = new Old2New();
+    try {
+        const isDir =  isFilePromise(path).catch(()=>false);
+        if(await isDir) {
+            await o2n.read(path);
+        } else {
+            console.log('No o2n at ',path,', setting up new');
+        }
+    } catch(e) {
+        console.error('skipping o2n read of', path, 'because', e);
+    }
+    return o2n;
+}
 
 /**
  * Return the custom fields for a ticket.
@@ -73,15 +94,36 @@ async function forTracType(type) {
     // (await nameToIssueType)[config.mapTypes[ticket.type]]}    
 }
 
+function getReporter(r) {
+    if(!r) return undefined;
+    const name = config.reporterMap[r];
+    if(name) {
+        return {name};
+    } else {
+        return undefined;
+    }
+}
+
+async function getFieldIdFromMap(mapId) {
+    const customName = config.mapFields[mapId];
+    if (!customName) throw Error(`no customName for ${mapId}`);
+    const subMap = await nameToFieldId;
+    const {key} = subMap[customName];
+    if (!key) throw Error(`No key for ${customName} (${mapId})`);
+    // console.log(mapId,customName,customId);
+    return key;
+}
+
 async function doit() {
     const projectId = (await project).id;
+
     // console.dir(await project);
     // console.dir(await nameToIssueType);
     // return;
     // console.dir(await nameToFieldId);
     // console.log(await InterMapTxt);
     // return;
-
+    
     const {count} = await ticketCount;
     console.log(`${count} tickets to process`);
     const all = await allTickets;
@@ -90,8 +132,14 @@ async function doit() {
         const {id, summary, description} = ticket;
         // make custom fields look like real fields
         Object.assign(ticket, await custom(id));
-        const {private,sensitive} = ticket;
+        const {owner, private,sensitive, reporter} = ticket;
         const hide = (/*private==='y' ||*/ sensitive == 1);
+        const jiraId = (await o2n).getJiraId(id);
+        if(jiraId) {
+            console.log(`Skipping #${id}- already as id ${jiraId}`);
+            continue;
+        }
+
         if(hide) {
             console.log(`Skipping #${id}: private=${private}, sensitive=${sensitive}`);
             continue;
@@ -101,21 +149,33 @@ async function doit() {
             summary,
             description,
             project: {id: projectId},
-            issuetype: {id: (await forTracType(ticket.type)).id }
-            // assignee: { name: }
-            // priority: {id: }
-            // 
+            issuetype: {id: (await forTracType(ticket.type)).id },
+            reporter: getReporter(reporter),
+            assignee: getReporter(owner)
         };
         // set the trac id
-//        fields[config.mapFields.id] = id;
-
+        fields[await getFieldIdFromMap('id')] = id.toString();
+        fields[await getFieldIdFromMap('reporter')] = reporter;
+        fields[await getFieldIdFromMap('owner')] = owner;
+        
         console.dir(fields);
 
         const ret = await jira.addNewIssue({
             fields
         });
         console.dir(ret);
+        const {key} = ret;
+        {
+            const [proj,jiraId] = key.split(/-/);
+            if(proj !== config.project.name) {
+                console.error('Expected project',config.project.name,'but got',proj);
+            } else {
+                (await o2n).putJiraId(id, jiraId);
+            }
+        }
     }
+
+    (await o2n).write(config.old2new.path);
 }
 
 
