@@ -19,7 +19,7 @@ const Old2New = require('./lib/old2new');
 
 const o2n = geto2n(config.old2new.path);
 
-// LIMIT
+// @@@ NOTE: this controls which tickets are imported. 
 const allTickets = dbPromise.then(async (db) => db.all('select * from ticket where id=13392'));
 
 const allComponents = dbPromise.then(async (db) => db.all('select * from component'));
