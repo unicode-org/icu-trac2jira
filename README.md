@@ -46,6 +46,9 @@ to use:
 ```
 
 Notes:
+
+- with 2fa use an API token instead of your password - https://id.atlassian.com/manage/api-tokens#
+
 - see the SQL code for `allTickets` in try.js - it controls which tickets will be processed.
 
 - run `node try.js` to run the converter.
