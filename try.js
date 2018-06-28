@@ -27,6 +27,18 @@ console.log('ticket filter:', ticketwhere);
 // @@@ NOTE: this controls which tickets are imported. 
 const allTickets = dbPromise.then(async (db) => db.all(`select * from ticket ${ticketwhere}`));
 
+
+/*
+ * ticket|time|author|field|oldvalue|newvalue
+ * 13828|1528927025850017|shane|comment|3|LGTM
+ */
+const allCommentsByTicket = dbPromise.then(async (db) => db.all(`select * from ticket_change where field='comment' order by time`))
+.then((all) => all.reduce((p,v) => {
+    const o = p[v.ticket] = p[v.ticket] || [];
+    o.push(v);
+    return p;
+}, {}));
+
 const maxTicket = dbPromise.then(async (db) => (await db.get('select id from ticket order by id DESC limit 1')).id);
 
 const allComponents = dbPromise.then(async (db) => db.all('select * from component'));
