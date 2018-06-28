@@ -228,8 +228,8 @@ async function doit() {
             console.error(`Could not load issue ${issueKey} — ${e}. `);
             next;
         });
-        console.dir(ticket);
-        console.dir(jiraIssue);
+        console.dir(ticket, {color: true, depth: Infinity});
+        console.dir(jiraIssue, {color: true, depth: Infinity});
         jiraId = jiraIssue.id;
         // unpack fields
         const fields = {};
@@ -281,7 +281,16 @@ async function doit() {
             setIfNotSet(await getFieldIdFromMap('id'), id.toString());
             setIfNotSet(await getFieldIdFromMap('reporter'), ticket.reporter);
             setIfNotSet(await getFieldIdFromMap('owner'), ticket.owner);
-            setIfNotSet(await getFieldIdFromMap('time'), new Date(ticket.time/1000).toISOString());
+            {
+                const timeField = await getFieldIdFromMap('time');
+                const jiraTime = new Date(jiraIssue.fields[timeField] || 0);
+                const tracTime = new Date(ticket.time/1000);
+                if(jiraTime.toDateString() !== tracTime.toDateString()) {
+                    // only if off by a day!
+                    setIfNotSet(await getFieldIdFromMap('time'), new Date(ticket.time/1000).toISOString());
+                }
+            }
+
             //     components: [ { id: await nameToComponentId(component)  } ]
 
         }
@@ -329,7 +338,7 @@ async function doit() {
  */
 function postscript() {
     console.log();
-    if(errTix) {
+    if(errTix && Object.keys(errTix).length > 0) {
         process.exitCode = 1;
         console.dir(errTix, {depth: Infinity, color: true});
         console.error(`Error in ${Object.keys(errTix).length} tickets.`);
