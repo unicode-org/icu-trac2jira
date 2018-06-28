@@ -17,15 +17,25 @@ const jira = new (require('jira-client')) (require('./config.json').jira);
 const dbPromise = sqlite.open(config.db.path, { cached: true });
 // const Old2New = require('./lib/old2new');
 
+const ticketwhere = process.argv[2] || '';
+
+console.log('ticket filter:', ticketwhere);
+// return;
 
 // const o2n = geto2n(config.old2new.path);
 
 // @@@ NOTE: this controls which tickets are imported. 
-const allTickets = dbPromise.then(async (db) => db.all('select * from ticket where id=5944'));
+const allTickets = dbPromise.then(async (db) => db.all(`select * from ticket ${ticketwhere}`));
 
 const maxTicket = dbPromise.then(async (db) => (await db.get('select id from ticket order by id DESC limit 1')).id);
 
 const allComponents = dbPromise.then(async (db) => db.all('select * from component'));
+
+const rev2ticket = dbPromise.then(async (db) => db.all('select * from rev2ticket'))
+.then((all) => all.reduce((p,v) => {
+    p[v.rev] = v.ticket;
+    return p;
+}, {}));
 
 const ticketCount = dbPromise.then(async (db) => db.get('select count(*) as count from ticket'));
 
@@ -222,7 +232,7 @@ async function doit() {
             }
 
             // Render
-            const newDescription = (await InterMapTxt).render({text: ticket.description, ticket, config, project});
+            const newDescription = (await InterMapTxt).render({text: ticket.description, ticket, config, project, rev2ticket: await rev2ticket});
             if(description !== newDescription) {
                 fields.description = newDescription;
             }
