@@ -157,6 +157,9 @@ async function getFieldIdFromMap(mapId) {
     return key;
 }
 
+const updTix = {};
+const errTix = {};
+
 async function doit() {
     const projectId = (await project).id;
     const {count} = await ticketCount;
@@ -268,7 +271,7 @@ async function doit() {
             }
 
             function setIfNotSet(k,v) {
-                if(fields[k] !== v) {
+                if(jiraIssue.fields[k] !== v) {
                     fields[k] = v;
                 }
             }
@@ -299,7 +302,12 @@ async function doit() {
         
         if(Object.keys(fields).length > 0) {
             console.dir({id, issueKey, jiraId, fields});
-            const ret = await jira.updateIssue(issueKey, {fields, notifyUsers: false});
+            const ret = await jira.updateIssue(issueKey, {fields, notifyUsers: false})
+            .catch((e) => {
+                errTix[jiraId] = e;
+                // console.error(e);
+                return {error: e};
+            });
 
             console.dir(ret);
         } else {
@@ -332,8 +340,21 @@ async function doit() {
 
 
 doit()
-.then((x) => console.dir(x), (e) => {
+.then((x) => {
+    console.dir(x);
+
+    if(updTix) {
+        console.log(`Updated ${Object.keys(updTix).length} tickets.`);
+    }
+    
+    if(errTix) {
+        process.exitCode = 1;
+        console.dir(errTix, {depth: Infinity, color: true});
+        console.error(`Error in ${Object.keys(updTix).length} tickets.`);
+    }
+}, (e) => {
     if (e.message) { console.error(e.message) } else { 
+        process.exitCode = 1;
         console.error(e);
     }
 });
