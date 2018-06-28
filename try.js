@@ -14,13 +14,15 @@ const jira = new (require('jira-client')) (require('./config.json').jira);
 
 // Promise for main Trac DB
 const dbPromise = sqlite.open(config.db.path, { cached: true });
-const Old2New = require('./lib/old2new');
+// const Old2New = require('./lib/old2new');
 
 
-const o2n = geto2n(config.old2new.path);
+// const o2n = geto2n(config.old2new.path);
 
 // @@@ NOTE: this controls which tickets are imported. 
 const allTickets = dbPromise.then(async (db) => db.all('select * from ticket'));
+
+const maxTicket = dbPromise.then(async (db) => (await db.get('select id from ticket order by id DESC limit 1')).id);
 
 const allComponents = dbPromise.then(async (db) => db.all('select * from component'));
 
@@ -59,20 +61,20 @@ async function nameToComponentId(name) {
  * Start up the 'old2new' machinery. Read existing DB if it exists.
  * @param {String} path 
  */
-async function geto2n(path) {
-    const o2n = new Old2New();
-    try {
-        const isDir =  isFilePromise(path).catch(()=>false);
-        if(await isDir) {
-            await o2n.read(path);
-        } else {
-            console.log('No o2n at ',path,', setting up new');
-        }
-    } catch(e) {
-        console.error('skipping o2n read of', path, 'because', e);
-    }
-    return o2n;
-}
+// async function geto2n(path) {
+//     const o2n = new Old2New();
+//     try {
+//         const isDir =  isFilePromise(path).catch(()=>false);
+//         if(await isDir) {
+//             await o2n.read(path);
+//         } else {
+//             console.log('No o2n at ',path,', setting up new');
+//         }
+//     } catch(e) {
+//         console.error('skipping o2n read of', path, 'because', e);
+//     }
+//     return o2n;
+// }
 
 /**
  * Return the custom fields for a ticket.
@@ -132,7 +134,10 @@ async function getFieldIdFromMap(mapId) {
 
 async function doit() {
     const projectId = (await project).id;
+    const {count} = await ticketCount;
+    console.log(` tickets to process`);
 
+    console.log(`trac: count ${count}, max ${await maxTicket}`);
     // console.dir(await project);
     // return;
     // console.dir(await nameToIssueType);
@@ -140,7 +145,7 @@ async function doit() {
     // console.log(await InterMapTxt);
     // console.log(await components);
     // console.dir(await _nameToComponent);
-// return;
+return;
     let addedComps = 0;
     for(component of (await allComponents)) {
         const {name,description} = component;
@@ -164,12 +169,10 @@ async function doit() {
 
     // return;
     
-    const {count} = await ticketCount;
-    console.log(`${count} tickets to process`);
     const all = await allTickets;
     // const custom = await ticketCustom;
     let wrtno = 0;
-
+    console.log('Skipping ticket creation');
     console.log('Getting tickets created..');
     // STEP 1 - get all summaries in 
     for(ticket of all) {
