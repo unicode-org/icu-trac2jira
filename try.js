@@ -21,7 +21,7 @@ const dbPromise = sqlite.open(config.db.path, { cached: true });
 // const o2n = geto2n(config.old2new.path);
 
 // @@@ NOTE: this controls which tickets are imported. 
-const allTickets = dbPromise.then(async (db) => db.all('select * from ticket where id=5917'));
+const allTickets = dbPromise.then(async (db) => db.all('select * from ticket where id=5944'));
 
 const maxTicket = dbPromise.then(async (db) => (await db.get('select id from ticket order by id DESC limit 1')).id);
 
