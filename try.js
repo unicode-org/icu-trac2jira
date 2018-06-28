@@ -4,6 +4,8 @@ const sqlite = require('sqlite');
 const isFilePromise = require('is-file-promise');
 const config = require('./config.json');
 
+config.reporterMap = require('./reporterMap.json'); // ask sffc for this
+
 const InterMap = require('./lib/intermap');
 
 // Initialize
@@ -229,7 +231,7 @@ async function doit() {
 
         // Set any fields that are wrong.
         {
-            const {description, issuetype, summary} = jiraIssue.fields;
+            const {description, issuetype, summary, reporter, assignee} = jiraIssue.fields;
 
             // Issue Type.
             jiraIssueType = (await forTracType(ticket.type));
@@ -243,11 +245,38 @@ async function doit() {
                 fields.summary = ticket.summary;
             }
 
-            // Render
+            // Description - rendered
             const newDescription = (await InterMapTxt).render({text: ticket.description, ticket, config, project, rev2ticket: await rev2ticket});
             if(description !== newDescription) {
                 fields.description = newDescription;
             }
+
+            // Reporter
+            // Trac reporter
+            const reporterKey = (config.reporterMap[ticket.reporter] || config.reporterMap.nobody || {}).name;
+            if(reporterKey && reporterKey != (reporter||{}).name) {
+                // JIRA reporter
+                fields.reporter = { name: reporterKey };
+            }
+
+            // Reporter
+            // Trac reporter
+            const ownerKey = (config.reporterMap[ticket.owner] || config.reporterMap.nobody || {}).name;
+            if(ownerKey && ownerKey != (assignee||{}).name) {
+                // JIRA reporter
+                fields.assignee = { name: ownerKey };
+            }
+
+            function setIfNotSet(k,v) {
+                if(fields[k] !== v) {
+                    fields[k] = v;
+                }
+            }
+
+            setIfNotSet(await getFieldIdFromMap('id'), id.toString());
+            setIfNotSet(await getFieldIdFromMap('reporter'), ticket.reporter);
+            setIfNotSet(await getFieldIdFromMap('owner'), ticket.owner);
+            setIfNotSet(await getFieldIdFromMap('time'), new Date(ticket.time/1000).toISOString());
         }
 
         // // if(hide) {

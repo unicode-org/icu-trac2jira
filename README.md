@@ -29,27 +29,19 @@ to use:
         "task": "Task",
         "improvement": "Improvement",
         "design": "Epic"
-    },
-    "old2new": {
-        "path": "../trac-old2new.json",
-        "traclinks": "../traclinks.d",
-        "base": "https://unicode-org.atlassian.net/browse"
-    },
-    "reporterMap": {
-        "srl": "srl295",
-        "srl(at)jtcsv.com": "srl295",
-        "somebody": null,
-        "shane": "shane",
-        "jefgen": "jeff.genovy"
     }
 }
 ```
 
+
+
 Notes:
+
+- this is an incremental conversion. you can run it lots of times.
 
 - with 2fa use an API token instead of your password - https://id.atlassian.com/manage/api-tokens#
 
-- see the SQL code for `allTickets` in try.js - it controls which tickets will be processed.
+- to just convert 1 ticket: `node try.js 'where id=13472'`
 
 - run `node try.js` to run the converter.
 
