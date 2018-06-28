@@ -1,0 +1,12 @@
+{
+  "update": {},
+  "fields": {
+    "project": {
+      "id": "10001"
+    },
+    "summary": "An Empty Ticket",
+    "issuetype": {
+      "id": "10013"
+    }
+  }
+}
