@@ -159,6 +159,7 @@ async function getFieldIdFromMap(mapId) {
 
 const updTix = {};
 const errTix = {};
+let scanno = 0;
 
 async function doit() {
     const projectId = (await project).id;
@@ -199,11 +200,12 @@ async function doit() {
     
     const all = await allTickets;
     // const custom = await ticketCustom;
-    let wrtno = 0;
+
     console.log('Skipping ticket creation. Going right to ticket update');
     console.log('Getting tickets created..');
     // STEP 1 - get all summaries in 
     for(ticket of all) {
+        scanno++;
         // console.log('Considering', ticket);
         const {id, summary, description} = ticket;
         console.log(id, summary);
@@ -280,33 +282,17 @@ async function doit() {
             setIfNotSet(await getFieldIdFromMap('reporter'), ticket.reporter);
             setIfNotSet(await getFieldIdFromMap('owner'), ticket.owner);
             setIfNotSet(await getFieldIdFromMap('time'), new Date(ticket.time/1000).toISOString());
+            //     components: [ { id: await nameToComponentId(component)  } ]
+
         }
 
-        // // if(hide) {
-        // //     console.log(`Skipping #${id}: private=${private}, sensitive=${sensitive}`);
-        // //     continue;
-        // // }
-        // const fields={
-        //     summary: `TBD: trac #${id}`,
-        //     description: `TBD: trac #${id}`,
-        //     project: {id: projectId},
-        //     issuetype: {id: (await forTracType(ticket.type)).id },
-        //     // reporter: getReporter(reporter),
-        //     // assignee: getReporter(owner),
-        //     components: [ { id: await nameToComponentId(component)  } ]
-        // };
-        // // set the trac id
-        // fields[await getFieldIdFromMap('id')] = id.toString();
-        // fields[await getFieldIdFromMap('reporter')] = reporter;
-        // fields[await getFieldIdFromMap('owner')] = owner;
-        
         if(Object.keys(fields).length > 0) {
             console.dir({id, issueKey, jiraId, fields});
             const ret = await jira.updateIssue(issueKey, {fields, notifyUsers: false})
             .catch((e) => {
-                errTix[jiraId] = e;
+                errTix[jiraId] = e.errors || e.message || e.toString();
                 // console.error(e);
-                return {error: e};
+                return {error: e.errorss || e.message || e.toString()};
             });
 
             console.dir(ret);
@@ -338,23 +324,30 @@ async function doit() {
 
 }
 
+/**
+ * Give a summary
+ */
+function postscript() {
+    console.log();
+    if(errTix) {
+        process.exitCode = 1;
+        console.dir(errTix, {depth: Infinity, color: true});
+        console.error(`Error in ${Object.keys(errTix).length} tickets.`);
+    }
+    if(updTix) {
+        console.log(`Updated ${Object.keys(updTix).length}/${scanno} tickets.`);
+    }
+}
 
 doit()
 .then((x) => {
     console.dir(x);
-
-    if(updTix) {
-        console.log(`Updated ${Object.keys(updTix).length} tickets.`);
-    }
+    postscript();
     
-    if(errTix) {
-        process.exitCode = 1;
-        console.dir(errTix, {depth: Infinity, color: true});
-        console.error(`Error in ${Object.keys(updTix).length} tickets.`);
-    }
 }, (e) => {
     if (e.message) { console.error(e.message) } else { 
         process.exitCode = 1;
         console.error(e);
+        postscript();
     }
 });
