@@ -236,7 +236,7 @@ async function doit() {
 
         // Set any fields that are wrong.
         {
-            const {description, issuetype, summary, reporter, assignee} = jiraIssue.fields;
+            const {components, description, issuetype, summary, reporter, assignee} = jiraIssue.fields;
 
             // Issue Type.
             jiraIssueType = (await forTracType(ticket.type));
@@ -291,19 +291,22 @@ async function doit() {
                 }
             }
 
-            //     components: [ { id: await nameToComponentId(component)  } ]
-
+            // Component is an array
+            const componentId = await nameToComponentId(component);
+            if((components[0] || {}).id !== componentId) {
+                fields.components = [{id: componentId }];
+            }
         }
 
         if(Object.keys(fields).length > 0) {
-            console.dir({id, issueKey, jiraId, fields});
+            console.dir({id, issueKey, jiraId, fields}, {color: true, depth: Infinity});
             const ret = await jira.updateIssue(issueKey, {fields, notifyUsers: false})
             .catch((e) => {
                 errTix[jiraId] = e.errors || e.message || e.toString();
                 // console.error(e);
                 return {error: e.errorss || e.message || e.toString()};
             });
-
+            updTix[jiraId] =  ret;
             console.dir(ret);
         } else {
             console.log('No change:', id, issueKey, jiraId);
