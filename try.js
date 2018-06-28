@@ -5,6 +5,7 @@ const isFilePromise = require('is-file-promise');
 const config = require('./config.json');
 
 const InterMap = require('./lib/intermap');
+
 // Initialize
 const jira = new JiraApi(config.jira);
 /*
@@ -20,7 +21,7 @@ const dbPromise = sqlite.open(config.db.path, { cached: true });
 // const o2n = geto2n(config.old2new.path);
 
 // @@@ NOTE: this controls which tickets are imported. 
-const allTickets = dbPromise.then(async (db) => db.all('select * from ticket'));
+const allTickets = dbPromise.then(async (db) => db.all('select * from ticket where id>100 and id<102'));
 
 const maxTicket = dbPromise.then(async (db) => (await db.get('select id from ticket order by id DESC limit 1')).id);
 
@@ -145,7 +146,7 @@ async function doit() {
     // console.log(await InterMapTxt);
     // console.log(await components);
     // console.dir(await _nameToComponent);
-return;
+// return;
     let addedComps = 0;
     for(component of (await allComponents)) {
         const {name,description} = component;
@@ -172,66 +173,110 @@ return;
     const all = await allTickets;
     // const custom = await ticketCustom;
     let wrtno = 0;
-    console.log('Skipping ticket creation');
+    console.log('Skipping ticket creation. Going right to ticket update');
     console.log('Getting tickets created..');
     // STEP 1 - get all summaries in 
     for(ticket of all) {
         // console.log('Considering', ticket);
         const {id, summary, description} = ticket;
+        console.log(id, summary);
+        // return;
         // make custom fields look like real fields
-        // Object.assign(ticket, await custom(id));
+        Object.assign(ticket, await custom(id));
         const {component, owner, private,sensitive, reporter} = ticket;
         const hide = (/*private==='y' ||*/ sensitive == 1);
-        const jiraId = (await o2n).getJiraId(id);
-        // console.dir(ticket);
-        if(jiraId) {
-            // console.log(`Skipping #${id}- already as id ${jiraId}`);
-            continue;
-        }
-
-        // if(hide) {
-        //     console.log(`Skipping #${id}: private=${private}, sensitive=${sensitive}`);
-        //     continue;
-        // }
-        const fields={
-            summary: `TBD: trac #${id}`,
-            description: `TBD: trac #${id}`,
-            project: {id: projectId},
-            issuetype: {id: (await forTracType(ticket.type)).id },
-            // reporter: getReporter(reporter),
-            // assignee: getReporter(owner),
-            components: [ { id: await nameToComponentId(component)  } ]
-        };
-        // set the trac id
-        fields[await getFieldIdFromMap('id')] = id.toString();
-        fields[await getFieldIdFromMap('reporter')] = reporter;
-        fields[await getFieldIdFromMap('owner')] = owner;
-        
-        // console.dir(fields);
-
-        const ret = await jira.addNewIssue({
-            fields
+        // const jiraId = (await o2n).getJiraId(id);
+        const issueKey =  `${config.project.name}-${id}`;
+        const jiraIssue = await jira.findIssue(
+            issueKey,
+            null, '', //expand,
+            null, //fields,
+            'description', //properties,
+            //fieldsByKeys
+        ).catch((e) => {
+            console.error(e);
+            process.exitCode=1;
+            console.error(`Could not load issue ${issueKey} — ${e}. `);
+            next;
         });
-        // console.dir(ret);
-        console.log(id, ret.key);
-        const {key} = ret;
+        console.dir(ticket);
+        console.dir(jiraIssue);
+        jiraId = jiraIssue.id;
+        // unpack fields
+        const fields = {};
+
+        // Set any fields that are wrong.
         {
-            const [proj,jiraId] = key.split(/-/);
-            if(proj !== config.project.name) {
-                console.error('Expected project',config.project.name,'but got',proj);
-            } else {
-                (await o2n).putJiraId(id, jiraId);
+            const {description, issuetype, summary} = jiraIssue.fields;
+
+            // Issue Type.
+            jiraIssueType = (await forTracType(ticket.type));
+            console.log(issuetype.id, jiraIssueType.id);
+            if (issuetype.id !== jiraIssueType.id) {
+                fields.issuetype = {id: jiraIssueType.id};
+            }
+
+            // Summary.
+            if(summary !== ticket.summary) {
+                fields.summary = ticket.summary;
+            }
+
+            // Render
+            const newDescription = (await InterMapTxt).render({text: ticket.description, ticket});
+            if(description !== newDescription) {
+                fields.description = newDescription;
             }
         }
-        // just in case - write every 10
-        if(wrtno>10) {
-            (await o2n).write(config.old2new.path);
-            wrtno = 0;
+
+        // // if(hide) {
+        // //     console.log(`Skipping #${id}: private=${private}, sensitive=${sensitive}`);
+        // //     continue;
+        // // }
+        // const fields={
+        //     summary: `TBD: trac #${id}`,
+        //     description: `TBD: trac #${id}`,
+        //     project: {id: projectId},
+        //     issuetype: {id: (await forTracType(ticket.type)).id },
+        //     // reporter: getReporter(reporter),
+        //     // assignee: getReporter(owner),
+        //     components: [ { id: await nameToComponentId(component)  } ]
+        // };
+        // // set the trac id
+        // fields[await getFieldIdFromMap('id')] = id.toString();
+        // fields[await getFieldIdFromMap('reporter')] = reporter;
+        // fields[await getFieldIdFromMap('owner')] = owner;
+        
+        if(Object.keys(fields).length > 0) {
+            console.dir({id, issueKey, jiraId, fields});
+            const ret = await jira.updateIssue(issueKey, {fields, notifyUsers: false});
+
+            console.dir(ret);
+        } else {
+            console.log('No change:', id, issueKey, jiraId);
         }
-        wrtno++;
+
+        // const ret = await jira.addNewIssue({
+        //     fields
+        // });
+        // // console.dir(ret);
+        // console.log(id, ret.key);
+        // const {key} = ret;
+        // {
+        //     const [proj,jiraId] = key.split(/-/);
+        //     if(proj !== config.project.name) {
+        //         console.error('Expected project',config.project.name,'but got',proj);
+        //     } else {
+        //         (await o2n).putJiraId(id, jiraId);
+        //     }
+        // }
+        // // just in case - write every 10
+        // if(wrtno>10) {
+        //     (await o2n).write(config.old2new.path);
+        //     wrtno = 0;
+        // }
+        // wrtno++;
     }
 
-    (await o2n).write(config.old2new.path);
 }
 
 
@@ -240,5 +285,4 @@ doit()
     if (e.message) { console.error(e.message) } else { 
         console.error(e);
     }
-    o2n.then((o2n)=>o2n.write(config.old2new.path), console.error(e)); 
 });
