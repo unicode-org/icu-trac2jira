@@ -213,7 +213,6 @@ async function doit() {
     console.log('Getting tickets created..');
     // STEP 1 - get all summaries in 
     for(ticket of all) {
-        scanno++;
         // console.log('Considering', ticket);
         const {id, summary, description} = ticket;
         console.log(id, summary);
@@ -222,6 +221,11 @@ async function doit() {
         Object.assign(ticket, await custom(id));
         const {component, owner, private,sensitive, reporter} = ticket;
         const hide = (/*private==='y' ||*/ sensitive == 1);
+        if(hide) {
+            errTix[id] = 'Private ticket';
+            continue;
+        }
+        scanno++;
         // const jiraId = (await o2n).getJiraId(id);
         const issueKey =  `${config.project.name}-${id}`;
         const jiraIssue = await jira.findIssue(
@@ -234,8 +238,10 @@ async function doit() {
             console.error(e);
             process.exitCode=1;
             console.error(`Could not load issue ${issueKey} — ${e}. `);
-            next;
+            errTix[id] = `Could not load issue ${issueKey} — ${e}. `;
+            return null;
         });
+        if(!jiraIssue) continue;
         console.dir(ticket, {color: true, depth: Infinity});
         console.dir(jiraIssue, {color: true, depth: Infinity});
         jiraId = jiraIssue.id;
