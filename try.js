@@ -4,6 +4,7 @@ const sqlite = require('sqlite');
 const isFilePromise = require('is-file-promise');
 const config = require('./config.json');
 const fs = require('fs');
+const obfuscate = require('./lib/obfuscateEmail');
 
 config.reporterMap = require('./reporterMap.json'); // ask sffc for this
 
@@ -283,13 +284,14 @@ async function doit() {
             }
 
             function setIfNotSet(k,v) {
+                if(v == '') v = null; // prevent noise.
                 if(jiraIssue.fields[k] !== v) {
                     fields[k] = v;
                 }
             }
 
             setIfNotSet(await getFieldIdFromMap('id'), id.toString());
-            setIfNotSet(await getFieldIdFromMap('reporter'), ticket.reporter);
+            setIfNotSet(await getFieldIdFromMap('reporter'), obfuscate(ticket.reporter));
             setIfNotSet(await getFieldIdFromMap('owner'), ticket.owner);
             setIfNotSet(await getFieldIdFromMap('revw'), ticket.revw);
             {
