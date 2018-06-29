@@ -291,6 +291,7 @@ async function doit() {
             setIfNotSet(await getFieldIdFromMap('id'), id.toString());
             setIfNotSet(await getFieldIdFromMap('reporter'), ticket.reporter);
             setIfNotSet(await getFieldIdFromMap('owner'), ticket.owner);
+            setIfNotSet(await getFieldIdFromMap('revw'), ticket.revw);
             {
                 const timeField = await getFieldIdFromMap('time');
                 const jiraTime = new Date(jiraIssue.fields[timeField] || 0);
