@@ -9,6 +9,7 @@ const isFilePromise = require('is-file-promise');
 const config = require('./config.json');
 const fs = require('fs');
 const obfuscate = require('./lib/obfuscateEmail');
+const mkdirp = require('mkdirp-then');
 
 config.reporterMap = require('./reporterMap.json'); // ask sffc for this
 
@@ -304,8 +305,25 @@ async function doit() {
 
             // Description - rendered
             const newDescription = (await InterMapTxt).render({text: ticket.description, ticket, config, project, rev2ticket: await rev2ticket});
-            if(description !== newDescription) {
-                fields.description = newDescription;
+
+            // If description is over the limit, truncate and move to a file
+            if(newDescription.length > 32000) {
+                await mkdirp(`${config.db.attachmentPath}/${id}/`);
+                fs.writeFileSync(`${config.db.attachmentPath}/${id}/${issueKey}.txt`, newDescription, 'utf-8');
+                const abt = (await attachmentsByTicket);
+                abt[id] = abt[id] || [];
+                abt[id].push({
+                    filename: `${issueKey}.txt`
+                });
+                const miniDescription = `h1. Text was too large\n\nLimit is about (${newDescription.length}, >32k)\nSee attached ${issueKey}.txt for original text.\n`;
+                if(description !== miniDescription) {
+                    fields.description = miniDescription;
+                }
+                ticket.keywords = (ticket.keywords||'')+' jira-overlong-description';
+            } else {
+                if(description !== newDescription) {
+                    fields.description = newDescription;
+                }
             }
 
             // Reporter
