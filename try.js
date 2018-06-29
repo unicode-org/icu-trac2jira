@@ -391,9 +391,24 @@ async function doit() {
                         });
                         console.dir(newComment);
                     } else {
+                        const fields = {};
                         if(jiraComments[n-1].body !== body) {
+                            fields.body = body;
+                        }
+                        // if(jiraCommentOwner && jiraCommentOwner.id) {
+                        //     if(jiraComments[n-1].author.id !== jiraCommentOwner.id) {
+                        //         fields.author = {id: jiraCommentOwner.id};
+                        //     }
+                        // } else {
+                        //     //  change the owner to APIBot?
+                        // }
+                        if(Object.keys(fields).length) {
+                            // Can't not set the content.
+                            fields.body = body;
                             const errKey = `${issueKey}.${n}`;
-                            const newComment = await jira.updateComment(issueKey, jiraComments[n-1].id, body)
+                            console.dir(fields);
+                            delete fields.body;  // body is in a separate param
+                            const newComment = await jira.updateComment(issueKey, jiraComments[n-1].id, body, fields)
                             .catch((e) => {
                                 // TODO: closure on n?
                                 errTix[errKey] = e.errors || e.message || e.toString();
