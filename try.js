@@ -284,7 +284,7 @@ async function doit() {
             }
 
             function setIfNotSet(k,v) {
-                if(v == '') v = null; // prevent noise.
+                if(v == '' || !v) v = null; // prevent noise.
                 if(jiraIssue.fields[k] !== v) {
                     fields[k] = v;
                 }
