@@ -40,7 +40,7 @@ const allTickets = dbPromise.then(async (db) => db.all(`select * from ticket ${t
  * ticket|time|author|field|oldvalue|newvalue
  * 13828|1528927025850017|shane|comment|3|LGTM
  */
-const allCommentsByTicket = dbPromise.then(async (db) => db.all(`select * from ticket_change where field='comment' order by time`))
+const allCommentsByTicket = dbPromise.then(async (db) => db.all(`select * from ticket_change where field='comment' and newvalue <> '' order by time`))
 .then((all) => all.reduce((p,v) => {
     const o = p[v.ticket] = p[v.ticket] || [];
     o.push(v);
@@ -326,20 +326,88 @@ async function doit() {
             }
         }
 
+        // If there's any change, write it.
         if(Object.keys(fields).length > 0) {
             console.dir({id, issueKey, jiraId, fields}, {color: true, depth: Infinity});
             const ret = await jira.updateIssue(issueKey, {fields, notifyUsers: false})
             .catch((e) => {
-                errTix[jiraId] = e.errors || e.message || e.toString();
+                errTix[issueKey] = e.errors || e.message || e.toString();
                 // console.error(e);
                 return {error: e.errorss || e.message || e.toString()};
             });
-            updTix[jiraId] =  ret;
+            updTix[issueKey] =  ret;
             console.dir(ret);
         } else {
             console.log('No change:', id, issueKey, jiraId);
         }
 
+        // TODO: create pseudo attachments for long descriptions or comments
+        // * ticket|time|author|field|oldvalue|newvalue
+        // * 13828|1528927025850017|shane|comment|3|LGTM
+        // COMMENTS
+        {
+            const comments = ((await allCommentsByTicket)[id])||[]; // at least []
+            const jiraComments = ((((jiraIssue||{}).fields.comment)||{}).comments) || []; // at least []
+            // console.log('LENGTHS', comments.length, jiraComments.length);
+            // Too many comments?!
+            if(comments.length< jiraComments.length) {
+                // delete excess comments
+                const body='(deleted)\n';
+                for(let c=comments.length; c<jiraComments.length; c++) {
+                    if(jiraComments[c].body !== body) {
+                        const errKey = `${issueKey}.${c}`;
+                        const newComment = await jira.updateComment(issueKey, jiraComments[c].id, body)
+                        .catch((e) => {
+                            // TODO: closure on n?
+                            errTix[errKey] = e.errors || e.message || e.toString();
+                            console.error(errKey, (errTix[errKey] = e.errors || e.message || e.toString()));
+                            return false;
+                        });
+                        console.dir(newComment);
+                    }
+                }
+                errTix[`${issueKey}.#`] = `Trac has ${comments.length} comments but ${jiraComments.length} in JIRA!`;
+            }
+            if(comments.length) {
+                // For each comement:
+                let n=0;
+                for(const comment of comments) {
+                    const jiraComment = (jiraComments||{})[n++]; // Try to find nth comment or null
+                    const errKey = `${issueKey}.${(jiraComment||{}).id || n}`;
+                    // console.dir(comment);
+                    const jiraCommentOwner = config.reporterMap[comment.author];
+                    const commentAuthor = (jiraCommentOwner&&jiraCommentOwner.name)?`[~${jiraCommentOwner.name}]`:`${obfuscate(comment.author)}`;
+                    const body = 
+                        `h6. Trac Comment ${comment.oldvalue} by ${commentAuthor}—${new Date(comment.time/1000).toISOString()}\n` +
+                        (await InterMapTxt).render({text: comment.newvalue, ticket, config, project, rev2ticket: await rev2ticket});
+                    if(!jiraComment) {
+                        // no jiraComment - add it.
+                        const newComment = await jira.addComment(issueKey, body)
+                        .catch((e) => {
+                            // TODO: closure on n?
+                            errTix[errKey] = e.errors || e.message || e.toString();
+                            console.error(errKey, (errTix[errKey] = e.errors || e.message || e.toString()));
+                            return false;
+                        });
+                        console.dir(newComment);
+                    } else {
+                        if(jiraComments[n-1].body !== body) {
+                            const errKey = `${issueKey}.${n}`;
+                            const newComment = await jira.updateComment(issueKey, jiraComments[n-1].id, body)
+                            .catch((e) => {
+                                // TODO: closure on n?
+                                errTix[errKey] = e.errors || e.message || e.toString();
+                                console.error(errKey, (errTix[errKey] = e.errors || e.message || e.toString()));
+                                return false;
+                            });
+                            console.dir(newComment);
+                        }    
+                    }
+                }
+            }
+        }
+
+        // ATTACHMENTS
         {
             const attaches = (await attachmentsByTicket)[id];
             if(attaches && attaches.length) {
@@ -368,35 +436,7 @@ async function doit() {
                     }
                 }
             }
-        }
-
-        // attachments
-        /*
-             attachment:
-      [ { self: 'https://unicode-org.atlassian.net/rest/api/2/attachment/10000',
-          id: '10000',
-          filename: 'TestVS-expect.png',
-          author:
-           { self: 'https://unicode-org.atlassian.net/rest/api/2/user?username=srl295',
-             name: 'srl295',
-             key: 'srl295',
-             accountId: '5af4a8718a1abd1427952ed9',
-             emailAddress: 'srl295@gmail.com',
-             avatarUrls:
-              { '48x48': 'https://avatar-cdn.atlassian.com/94a290285ee4431dfc2f89e66315f24c?s=48&d=https%3A%2F%2Fsecure.gravatar.com%2Favatar%2F94a290285ee4431dfc2f89e66315f24c%3Fd%3Dmm%26s%3D48%26noRedirect%3Dtrue',
-                '24x24': 'https://avatar-cdn.atlassian.com/94a290285ee4431dfc2f89e66315f24c?s=24&d=https%3A%2F%2Fsecure.gravatar.com%2Favatar%2F94a290285ee4431dfc2f89e66315f24c%3Fd%3Dmm%26s%3D24%26noRedirect%3Dtrue',
-                '16x16': 'https://avatar-cdn.atlassian.com/94a290285ee4431dfc2f89e66315f24c?s=16&d=https%3A%2F%2Fsecure.gravatar.com%2Favatar%2F94a290285ee4431dfc2f89e66315f24c%3Fd%3Dmm%26s%3D16%26noRedirect%3Dtrue',
-                '32x32': 'https://avatar-cdn.atlassian.com/94a290285ee4431dfc2f89e66315f24c?s=32&d=https%3A%2F%2Fsecure.gravatar.com%2Favatar%2F94a290285ee4431dfc2f89e66315f24c%3Fd%3Dmm%26s%3D32%26noRedirect%3Dtrue' },
-             displayName: 'Steven R. Loomis',
-             active: true,
-             timeZone: 'America/Los_Angeles' },
-          created: '2018-06-28T16:59:47.923-0700',
-          size: 13035,
-          mimeType: 'image/png',
-          content: 'https://unicode-org.atlassian.net/secure/attachment/10000/TestVS-expect.png',
-          thumbnail: 'https://unicode-org.atlassian.net/secure/thumbnail/10000/TestVS-expect.png' } ],
-          */
-                
+        }                        
     }
 
 }
