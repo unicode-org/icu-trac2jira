@@ -221,10 +221,6 @@ async function doit() {
         Object.assign(ticket, await custom(id));
         const {component, owner, private,sensitive, reporter} = ticket;
         const hide = (/*private==='y' ||*/ sensitive == 1);
-        if(hide) {
-            errTix[id] = 'Private ticket';
-            continue;
-        }
         scanno++;
         // const jiraId = (await o2n).getJiraId(id);
         const issueKey =  `${config.project.name}-${id}`;
@@ -241,7 +237,7 @@ async function doit() {
             errTix[id] = `Could not load issue ${issueKey} — ${e}. `;
             return null;
         });
-        if(!jiraIssue) continue;
+        if(!jiraIssue) continue; // could not load
         console.dir(ticket, {color: true, depth: Infinity});
         console.dir(jiraIssue, {color: true, depth: Infinity});
         jiraId = jiraIssue.id;
@@ -250,7 +246,7 @@ async function doit() {
 
         // Set any fields that are wrong.
         {
-            const {components, description, issuetype, summary, reporter, assignee} = jiraIssue.fields;
+            const {security, components, description, issuetype, summary, reporter, assignee} = jiraIssue.fields;
 
             // Issue Type.
             jiraIssueType = (await forTracType(ticket.type));
@@ -309,6 +305,17 @@ async function doit() {
             const componentId = await nameToComponentId(component);
             if((components[0] || {}).id !== componentId) {
                 fields.components = [{id: componentId }];
+            }
+
+            // Security needs to be set if different (may be null)
+            if(hide) {
+                if(security === null) {
+                    fields.security = { id: config.security.sensitive }; // set security
+                }
+            } else {
+                if(security != null) {
+                    fields.security = null; // unset security
+                }
             }
         }
 
