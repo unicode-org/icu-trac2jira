@@ -1,5 +1,8 @@
+### ICU's Trac to JIRA converter
+
 to use:
 - npm i
+- you will need a `reporterMap.json` file also
 - create a `config.json` as follows:
 
 ```json

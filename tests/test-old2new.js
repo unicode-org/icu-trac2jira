@@ -1,3 +1,7 @@
+// Part of ICU tools
+// Copyright (C) 2016 and later: Unicode, Inc. and others.
+// License & terms of use: http://www.unicode.org/copyright.html
+
 const {test} = require('tap');
 const Old2New = require('../lib/old2new');
 test('basic', t => {

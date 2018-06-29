@@ -1,3 +1,7 @@
+// Part of ICU tools
+// Copyright (C) 2016 and later: Unicode, Inc. and others.
+// License & terms of use: http://www.unicode.org/copyright.html
+
 const obfuscate = require('../lib/obfuscateEmail');
 const {test} = require('tap');
 
