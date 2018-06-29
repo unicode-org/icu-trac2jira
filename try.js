@@ -57,6 +57,8 @@ const attachmentsByTicket = dbPromise.then(async (db) => db.all(`select * from a
 const maxTicket = dbPromise.then(async (db) => (await db.get('select id from ticket order by id DESC limit 1')).id);
 
 const allComponents = dbPromise.then(async (db) => db.all('select * from component'));
+const allPriorities = dbPromise.then(async (db) => db.all('select distinct priority from ticket'))
+.then(l => l.map(v=>v.priority).filter(v => (v && v!=='(null)')));
 
 const rev2ticket = dbPromise.then(async (db) => db.all('select * from rev2ticket'))
 .then((all) => all.reduce((p,v) => {
@@ -69,6 +71,7 @@ const ticketCount = dbPromise.then(async (db) => db.get('select count(*) as coun
 const project = jira.getProject(config.project.name);
 const issueTypes = jira.listIssueTypes();
 const components = jira.listComponents(config.project.name);
+const priorities = jira.listPriorities(config.project.name);
 
 const nameToIssueType = issueTypes.then(async (issueTypes) => issueTypes.reduce((p,v) => {
     p[v.name] = v;
@@ -87,8 +90,21 @@ const _nameToComponent = components.then(async (allFields) => allFields.reduce((
     return p;
 }, {}));
 
+const _nameToPriority = priorities.then(async (allFields) => allFields.reduce((p,v) => {
+    p[v.name] = v;
+    return p;
+}, {}));
+
 async function nameToComponentId(name) {
     const n2c = await _nameToComponent;
+    const info = n2c[name];
+    if(!info) return null;
+    const {id} = info;
+    if(id) return id;
+}
+
+async function nameToPriorityId(name) {
+    const n2c = await _nameToPriority;
     const info = n2c[name];
     if(!info) return null;
     const {id} = info;
@@ -175,6 +191,9 @@ const errTix = {};
 let scanno = 0;
 
 async function doit() {
+    // console.dir(await allPriorities);
+    // return;
+
     const projectId = (await project).id;
     const {count} = await ticketCount;
     console.log(` tickets to process`);
@@ -205,8 +224,25 @@ async function doit() {
             addedComps++
         }
     }
+    for(name of (await allPriorities)) {
+        // const {name,description} = priority;
+        const existingId = await nameToPriorityId(name);
+        if(!existingId) {
+            const body = {
+                name,
+                // description,
+                project: config.project.name,
+                projectId
+            };
+            console.log('need to add priority',name);
+            // hack: add it back to the cache
+            // Ooops - can't do this from the API
+            // await jira.addNewPriority(body);
+            addedComps++
+        }
+    }
     if(addedComps) {
-        throw Error(`Just added ${addedComps} components ,please try again`);
+        throw Error(`^ Just added or need to add ${addedComps} components/priorities ,please try again`);
     }
 
     // return;
@@ -251,7 +287,8 @@ async function doit() {
 
         // Set any fields that are wrong.
         {
-            const {security, components, description, issuetype, summary, reporter, assignee} = jiraIssue.fields;
+            // Warning: component = trac component, components = jira component.   Yeah.
+            const {priority, security, components, description, issuetype, summary, reporter, assignee} = jiraIssue.fields;
 
             // Issue Type.
             jiraIssueType = (await forTracType(ticket.type));
@@ -310,8 +347,28 @@ async function doit() {
 
             // Component is an array
             const componentId = await nameToComponentId(component);
-            if((components[0] || {}).id !== componentId) {
-                fields.components = [{id: componentId }];
+            if(componentId) {
+                if((components[0] || {}).id !== componentId) {
+                    fields.components = [{id: componentId }];
+                }
+            } else {
+                if(component) {
+                    errTix[`component-${component}`] = 'not in jira';
+                }
+                if((components[0] || {}).id) {
+                    fields.components = null; // set to no component.
+                }
+            }
+
+            const priorityId = await nameToPriorityId(ticket.priority||'assess');
+            if(priorityId) {
+                if((priority||{}).id !== priorityId) {
+                    fields.priority = {id: priorityId };
+                }
+            } else {
+                if((priority||{}).id) {
+                    fields.priority = null; // set to no priority?
+                }
             }
 
             // Security needs to be set if different (may be null)
