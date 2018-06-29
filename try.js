@@ -3,6 +3,7 @@ const JiraApi = require('jira-client');
 const sqlite = require('sqlite');
 const isFilePromise = require('is-file-promise');
 const config = require('./config.json');
+const fs = require('fs');
 
 config.reporterMap = require('./reporterMap.json'); // ask sffc for this
 
@@ -37,6 +38,13 @@ const allTickets = dbPromise.then(async (db) => db.all(`select * from ticket ${t
 const allCommentsByTicket = dbPromise.then(async (db) => db.all(`select * from ticket_change where field='comment' order by time`))
 .then((all) => all.reduce((p,v) => {
     const o = p[v.ticket] = p[v.ticket] || [];
+    o.push(v);
+    return p;
+}, {}));
+
+const attachmentsByTicket = dbPromise.then(async (db) => db.all(`select * from attachment where type='ticket' order by id`))
+.then((all) => all.reduce((p,v) => {
+    const o = p[v.id] = p[v.id] || [];
     o.push(v);
     return p;
 }, {}));
@@ -312,26 +320,63 @@ async function doit() {
             console.log('No change:', id, issueKey, jiraId);
         }
 
-        // const ret = await jira.addNewIssue({
-        //     fields
-        // });
-        // // console.dir(ret);
-        // console.log(id, ret.key);
-        // const {key} = ret;
-        // {
-        //     const [proj,jiraId] = key.split(/-/);
-        //     if(proj !== config.project.name) {
-        //         console.error('Expected project',config.project.name,'but got',proj);
-        //     } else {
-        //         (await o2n).putJiraId(id, jiraId);
-        //     }
-        // }
-        // // just in case - write every 10
-        // if(wrtno>10) {
-        //     (await o2n).write(config.old2new.path);
-        //     wrtno = 0;
-        // }
-        // wrtno++;
+        {
+            const attaches = (await attachmentsByTicket)[id];
+            if(attaches && attaches.length) {
+                // For each attachment
+                for(const attach of attaches) {
+                    // console.dir(attach);
+                    // Do we have this attachment already?
+                    let foundCount = 0;
+                    for(const jattach of (jiraIssue.fields.attachment || [])) {
+                        if(jattach.filename === attach.filename) {
+                            foundCount++;
+                        } else {
+                            console.log('mismatch',jattach.filename, attach.filename);
+                        }
+                    }
+                    if(foundCount === 0) {
+                        // now we attach
+                        const attachResp = await jira.addAttachmentOnIssue(issueKey, fs.createReadStream(`${config.db.attachmentPath}/${id}/${attach.filename}`))
+                        .catch((e) => {
+                            errTix[`${id}.${attach.filename}`] = e.toString();
+                            return null;
+                        });
+                        if(attachResp ) {
+                            console.dir(attachResp);
+                        }
+                    }
+                }
+            }
+        }
+
+        // attachments
+        /*
+             attachment:
+      [ { self: 'https://unicode-org.atlassian.net/rest/api/2/attachment/10000',
+          id: '10000',
+          filename: 'TestVS-expect.png',
+          author:
+           { self: 'https://unicode-org.atlassian.net/rest/api/2/user?username=srl295',
+             name: 'srl295',
+             key: 'srl295',
+             accountId: '5af4a8718a1abd1427952ed9',
+             emailAddress: 'srl295@gmail.com',
+             avatarUrls:
+              { '48x48': 'https://avatar-cdn.atlassian.com/94a290285ee4431dfc2f89e66315f24c?s=48&d=https%3A%2F%2Fsecure.gravatar.com%2Favatar%2F94a290285ee4431dfc2f89e66315f24c%3Fd%3Dmm%26s%3D48%26noRedirect%3Dtrue',
+                '24x24': 'https://avatar-cdn.atlassian.com/94a290285ee4431dfc2f89e66315f24c?s=24&d=https%3A%2F%2Fsecure.gravatar.com%2Favatar%2F94a290285ee4431dfc2f89e66315f24c%3Fd%3Dmm%26s%3D24%26noRedirect%3Dtrue',
+                '16x16': 'https://avatar-cdn.atlassian.com/94a290285ee4431dfc2f89e66315f24c?s=16&d=https%3A%2F%2Fsecure.gravatar.com%2Favatar%2F94a290285ee4431dfc2f89e66315f24c%3Fd%3Dmm%26s%3D16%26noRedirect%3Dtrue',
+                '32x32': 'https://avatar-cdn.atlassian.com/94a290285ee4431dfc2f89e66315f24c?s=32&d=https%3A%2F%2Fsecure.gravatar.com%2Favatar%2F94a290285ee4431dfc2f89e66315f24c%3Fd%3Dmm%26s%3D32%26noRedirect%3Dtrue' },
+             displayName: 'Steven R. Loomis',
+             active: true,
+             timeZone: 'America/Los_Angeles' },
+          created: '2018-06-28T16:59:47.923-0700',
+          size: 13035,
+          mimeType: 'image/png',
+          content: 'https://unicode-org.atlassian.net/secure/attachment/10000/TestVS-expect.png',
+          thumbnail: 'https://unicode-org.atlassian.net/secure/thumbnail/10000/TestVS-expect.png' } ],
+          */
+                
     }
 
 }
