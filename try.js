@@ -331,7 +331,7 @@ async function doit() {
                 }
             }
 
-            setIfNotSet(await getFieldIdFromMap('id'), id.toString());
+            // setIfNotSet(await getFieldIdFromMap('id'), id.toString());
             setIfNotSet(await getFieldIdFromMap('reporter'), obfuscate(ticket.reporter));
             setIfNotSet(await getFieldIdFromMap('owner'), ticket.owner);
             setIfNotSet(await getFieldIdFromMap('revw'), ticket.revw);
