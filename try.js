@@ -288,7 +288,7 @@ async function doit() {
         // Set any fields that are wrong.
         {
             // Warning: component = trac component, components = jira component.   Yeah.
-            const {priority, security, components, description, issuetype, summary, reporter, assignee} = jiraIssue.fields;
+            const {labels, priority, security, components, description, issuetype, summary, reporter, assignee} = jiraIssue.fields;
 
             // Issue Type.
             jiraIssueType = (await forTracType(ticket.type));
@@ -380,6 +380,19 @@ async function doit() {
                 if(security != null) {
                     fields.security = null; // unset security
                 }
+            }
+
+            // labels/keywords
+            if(ticket.keywords) {
+                const tracKw = Array.from(new Set(ticket.keywords.trim().split(/[, ]+/).filter(k => k))).sort();
+                const jiraKw = Array.from(new Set(labels||[])).sort();
+                // console.log(tracKw,jiraKw);
+                // ok, ok
+                if(tracKw.join(' ') !== jiraKw.join(' ')) {
+                    fields.labels = tracKw;
+                }
+            } else {
+                if(labels) fields.labels = null;
             }
         }
 
@@ -491,8 +504,8 @@ async function doit() {
                     for(const jattach of (jiraIssue.fields.attachment || [])) {
                         if(jattach.filename === attach.filename) {
                             foundCount++;
-                        } else {
-                            console.log('mismatch',jattach.filename, attach.filename);
+                        // } else {
+                        //     console.log('mismatch',jattach.filename, attach.filename);
                         }
                     }
                     if(foundCount === 0) {
