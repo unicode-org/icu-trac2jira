@@ -470,6 +470,15 @@ async function doit() {
                 }
             }
 
+            // PUNT…  move status/resolution to keywords
+            {
+                let wantStatus = (ticket.status || '').trim();
+                let wantResolution = (ticket.resolution || '').trim();
+
+                ticket.keywords = (ticket.keywords||'')+` status-${wantStatus} resolution-${wantResolution}`;
+
+            }
+
             // Reporter
             // Trac reporter
             const reporterKey = (config.reporterMap[ticket.reporter] || config.reporterMap.nobody || {}).name;
@@ -560,40 +569,40 @@ async function doit() {
             console.log('No change:', id, issueKey, jiraId);
         }
 
-        const wantStatus = (ticket.status || 'new');
-        const wantStatusId = await nameToStatusId(wantStatus);
-        if(jiraIssue.fields.status.id !== wantStatusId) {
-            // console.error(`in state ${jiraIssue.fields.status.name} want ${wantStatus} (${wantStatusId})`);
-            const transitions = await jira.listTransitions(issueKey);
-            // how to get there?
-            const goodTransitions = transitions.transitions.filter(t => t.to.id == wantStatusId);
-            // console.dir(goodTransitions, {depth: Infinity});
-            if(goodTransitions.length != 1) {
-                throw Error(`Too many or zero paths from ${issueKey} to ${wantStatus} : ${JSON.stringify(goodTransitions)}`);
-            }
-            body = {
-                //update: {
-                    // comment: {
-                        // no comments from the peanut gallery
-                    // }
-                // },
-                transition: { id: goodTransitions[0].id },
-                // fields: {
-                //     resolution: {
-                //         name: ticket.resolution
-                //     }
-                // }
-            };
-            
-            const doTransition = await jira.transitionIssue(issueKey, body).catch((e) => {
-                errTix[`${issueKey}::${wantStatus}`] = e.toString();
-                console.error(e.toString);
-                return false;
-            });
-            if(!doTransition) {
-                console.dir(doTransition);
-            }
-        }
+        // const wantStatus = (ticket.status || 'new');
+        // const wantStatusId = await nameToStatusId(wantStatus);
+        // if(jiraIssue.fields.status.id !== wantStatusId) {
+        //     // console.error(`in state ${jiraIssue.fields.status.name} want ${wantStatus} (${wantStatusId})`);
+        //     const transitions = await jira.listTransitions(issueKey);
+        //     // how to get there?
+        //     const goodTransitions = transitions.transitions.filter(t => t.to.id == wantStatusId);
+        //     // console.dir(goodTransitions, {depth: Infinity});
+        //     if(goodTransitions.length != 1) {
+        //         throw Error(`Too many or zero paths from ${issueKey} to ${wantStatus} : ${JSON.stringify(goodTransitions)}`);
+        //     }
+        //     body = {
+        //         //update: {
+        //             // comment: {
+        //                 // no comments from the peanut gallery
+        //             // }
+        //         // },
+        //         transition: { id: goodTransitions[0].id },
+        //         // fields: {
+        //         //     resolution: {
+        //         //         name: ticket.resolution
+        //         //     }
+        //         // }
+        //     };
+
+        //     const doTransition = await jira.transitionIssue(issueKey, body).catch((e) => {
+        //         errTix[`${issueKey}::${wantStatus}`] = e.toString();
+        //         console.error(e.toString);
+        //         return false;
+        //     });
+        //     if(!doTransition) {
+        //         console.dir(doTransition);
+        //     }
+        // }
 
         // TODO: create pseudo attachments for long descriptions or comments
         // * ticket|time|author|field|oldvalue|newvalue
