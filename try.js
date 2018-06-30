@@ -470,14 +470,21 @@ async function doit() {
                 }
             }
 
-            // PUNT…  move status/resolution to keywords
+            // PUNT…  move status/resolution to custom fields
             {
                 let wantStatus = (ticket.status || '').trim();
                 let wantResolution = (ticket.resolution || '').trim();
-
-                ticket.keywords = (ticket.keywords||'')+` status-${wantStatus} resolution-${wantResolution}`;
+                setIfNotSet(await getFieldIdFromMap('status'), wantStatus);
+                setIfNotSet(await getFieldIdFromMap('resolution'), wantResolution);
+    
+                // ticket.keywords = (ticket.keywords||'')+` status-${wantStatus} resolution-${wantResolution}`;
 
             }
+
+            setIfNotSet(await getFieldIdFromMap('project'), ticket.project);
+            setIfNotSet(await getFieldIdFromMap('weeks'), Number(ticket.weeks));
+            setIfNotSet(await getFieldIdFromMap('cc'), (ticket.cc||'').split(/[, ]+/).map(e => obfuscate(e)).sort().join(','));
+
 
             // Reporter
             // Trac reporter

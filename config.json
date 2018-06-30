@@ -11,7 +11,12 @@
         "owner": "tracOwner",
         "reporter": "tracReporter",
         "time": "tracCreated",
-        "revw": "tracReviewer"
+        "revw": "tracReviewer",
+        "status": "tracStatus",
+        "resolution": "tracResolution",
+        "weeks": "tracWeeks",
+        "project": "tracProject",
+        "cc": "tracCc"
     },
     "mapTypes": {
         "defect": "Bug",
