@@ -281,8 +281,8 @@ async function doit() {
             return null;
         });
         if(!jiraIssue) continue; // could not load
-        console.dir(ticket, {color: true, depth: Infinity});
-        console.dir(jiraIssue, {color: true, depth: Infinity});
+        // console.dir(ticket, {color: true, depth: Infinity});
+        // console.dir(jiraIssue, {color: true, depth: Infinity});
         jiraId = jiraIssue.id;
         // unpack fields
         const fields = {};
@@ -295,7 +295,7 @@ async function doit() {
 
             // Issue Type.
             jiraIssueType = (await forTracType(ticket.type));
-            console.log(issuetype.id, jiraIssueType.id);
+            // console.log(issuetype.id, jiraIssueType.id);
             if (issuetype.id !== jiraIssueType.id) {
                 fields.issuetype = {id: jiraIssueType.id};
             }
@@ -479,7 +479,7 @@ async function doit() {
                 return {error: e.errorss || e.message || e.toString()};
             });
             updTix[issueKey] =  ret;
-            console.dir(ret);
+            // console.dir(ret);
         } else {
             console.log('No change:', id, issueKey, jiraId);
         }
@@ -506,7 +506,7 @@ async function doit() {
                             console.error(errKey, (errTix[errKey] = e.errors || e.message || e.toString()));
                             return false;
                         });
-                        console.dir(newComment);
+                        // console.dir(newComment);
                     }
                 }
                 errTix[`${issueKey}.#`] = `Trac has ${comments.length} comments but ${jiraComments.length} in JIRA!`;
@@ -532,7 +532,7 @@ async function doit() {
                             console.error(errKey, (errTix[errKey] = e.errors || e.message || e.toString()));
                             return false;
                         });
-                        console.dir(newComment);
+                        // console.dir(newComment);
                     } else {
                         const fields = {};
                         if(jiraComments[n-1].body !== body) {
@@ -558,7 +558,7 @@ async function doit() {
                                 console.error(errKey, (errTix[errKey] = e.errors || e.message || e.toString()));
                                 return false;
                             });
-                            console.dir(newComment);
+                            // console.dir(newComment);
                         }    
                     }
                 }
