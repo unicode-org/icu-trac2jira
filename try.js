@@ -463,7 +463,7 @@ async function doit() {
                     fields.labels = tracKw;
                 }
             } else {
-                if(labels) fields.labels = null;
+                if(labels && labels.length) fields.labels = null;
             }
 
 
