@@ -401,7 +401,7 @@ async function doit() {
                         .catch((e) => {
                             // errTix[`${issueKey}::${targetLink}`] = e.toString();
                             preDescriptionJunk = preDescriptionJunk + 'h6. Orphan Xref: ' + xref + '\n\n';
-                            console.error(e);
+                            console.error(e.toString());
                         });
                     }
                 }

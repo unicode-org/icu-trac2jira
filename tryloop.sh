@@ -8,6 +8,6 @@ do
     upper=$(expr \( ${k} + 1 \) '*' 1000)
     where="where id >= $lower and id < $upper"
     echo $where
-    time node try.js "${where}"&
+    time node try.js "${where}" 2>&1 | tee local-out${k}.txt&
 done
 # $ node try.js 'where id = 12002'
