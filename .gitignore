@@ -4,4 +4,3 @@
 /.nyc_output
 /tests/old2new-persist-out.json
 /local*
-/reporterMap.json
