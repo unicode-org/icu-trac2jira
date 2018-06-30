@@ -339,7 +339,7 @@ async function doit() {
         });
         if(!jiraIssue) continue; // could not load
         // console.dir(ticket, {color: true, depth: Infinity});
-        console.dir(jiraIssue, {color: true, depth: Infinity});
+        // console.dir(jiraIssue, {color: true, depth: Infinity});
         jiraId = jiraIssue.id;
         // unpack fields
         const fields = {};
