@@ -79,7 +79,7 @@ const issueTypes = jira.listIssueTypes();
 const components = jira.listComponents(config.project.name);
 const priorities = jira.listPriorities(config.project.name);
 const versions = jira.getVersions(config.project.name);
-
+const statuses = jira.listStatus/*…es*/(); // https://english.stackexchange.com/a/43324
 const nameToIssueType = issueTypes.then(async (issueTypes) => issueTypes.reduce((p,v) => {
     p[v.name] = v;
     return p;
@@ -107,6 +107,12 @@ const _nameToVersion = versions.then(async (allFields) => allFields.reduce((p,v)
     return p;
 }, {}));
 
+// copy and paste much?
+const _nameToStatus = statuses.then(async (allFields) => allFields.reduce((p,v) => {
+    p[v.name] = v;
+    return p;
+}, {}));
+
 async function nameToComponentId(name) {
     const n2c = await _nameToComponent;
     const info = n2c[name];
@@ -125,6 +131,13 @@ async function nameToVersionId(name) {
 
 async function nameToPriorityId(name) {
     const n2c = await _nameToPriority;
+    const info = n2c[name];
+    if(!info) return null;
+    const {id} = info;
+    if(id) return id;
+}
+async function nameToStatusId(name) {
+    const n2c = await _nameToStatus;
     const info = n2c[name];
     if(!info) return null;
     const {id} = info;
@@ -211,8 +224,6 @@ const errTix = {};
 let scanno = 0;
 
 async function doit() {
-    // console.dir(await allPriorities);
-    // return;
 
     const projectId = (await project).id;
     const {count} = await ticketCount;
@@ -547,6 +558,41 @@ async function doit() {
             // console.dir(ret);
         } else {
             console.log('No change:', id, issueKey, jiraId);
+        }
+
+        const wantStatus = (ticket.status || 'new');
+        const wantStatusId = await nameToStatusId(wantStatus);
+        if(jiraIssue.fields.status.id !== wantStatusId) {
+            // console.error(`in state ${jiraIssue.fields.status.name} want ${wantStatus} (${wantStatusId})`);
+            const transitions = await jira.listTransitions(issueKey);
+            // how to get there?
+            const goodTransitions = transitions.transitions.filter(t => t.to.id == wantStatusId);
+            // console.dir(goodTransitions, {depth: Infinity});
+            if(goodTransitions.length != 1) {
+                throw Error(`Too many or zero paths from ${issueKey} to ${wantStatus} : ${JSON.stringify(goodTransitions)}`);
+            }
+            body = {
+                //update: {
+                    // comment: {
+                        // no comments from the peanut gallery
+                    // }
+                // },
+                transition: { id: goodTransitions[0].id },
+                // fields: {
+                //     resolution: {
+                //         name: ticket.resolution
+                //     }
+                // }
+            };
+            
+            const doTransition = await jira.transitionIssue(issueKey, body).catch((e) => {
+                errTix[`${issueKey}::${wantStatus}`] = e.toString();
+                console.error(e.toString);
+                return false;
+            });
+            if(!doTransition) {
+                console.dir(doTransition);
+            }
         }
 
         // TODO: create pseudo attachments for long descriptions or comments
