@@ -58,6 +58,7 @@ const attachmentsByTicket = dbPromise.then(async (db) => db.all(`select * from a
 const maxTicket = dbPromise.then(async (db) => (await db.get('select id from ticket order by id DESC limit 1')).id);
 
 const allComponents = dbPromise.then(async (db) => db.all('select * from component'));
+
 const allPriorities = dbPromise.then(async (db) => db.all('select distinct priority from ticket'))
 .then(l => l.map(v=>v.priority).filter(v => (v && v!=='(null)')));
 
@@ -289,7 +290,8 @@ async function doit() {
         // Set any fields that are wrong.
         {
             // Warning: component = trac component, components = jira component.   Yeah.
-            const {labels, priority, security, components, description, issuetype, summary, reporter, assignee} = jiraIssue.fields;
+            const {issuelinks, labels, priority, security, components,
+                description, issuetype, summary, reporter, assignee} = jiraIssue.fields;
 
             // Issue Type.
             jiraIssueType = (await forTracType(ticket.type));
@@ -303,8 +305,74 @@ async function doit() {
                 fields.summary = ticket.summary;
             }
 
+            let preDescriptionJunk = '';
+            // XREF is links. Not a field.
+            if(ticket.xref && ticket.xref.trim()) {
+                linkedIds = (issuelinks||[])
+                .filter(link => link.type.id === config.xrefLinkType.id)
+                .map(link => (link.outwardIssue || link.inwardIssue).key);
+                const linkedIdSet = new Set(linkedIds);
+                for(let xref of ticket.xref.trim().split(/[, ]+/)) {
+                    xref =  xref.replace(/^ticket:[ ]*/,'')
+                    .replace(/^#[ ]*/,'')
+                    .replace(/^[p][ ]*/,'')
+                    .trim();
+                    if(/(cldrbug|eclipsebug):[0-9]+/.test(xref)) {
+                        // argh.. 
+                        preDescriptionJunk = preDescriptionJunk + 'h6. Also see: ' + xref + '\n\n';
+                        continue;
+                    }
+
+                    if(!xref) continue;
+                    if(!/[0-9]+/.test(xref)) {
+                        preDescriptionJunk = preDescriptionJunk + 'h6. Malformed Xref: ' + xref + '\n\n';
+                        continue;
+                    }
+                    // console.log('XREF', xref);
+                    const targetLink = `${config.project.name}-${xref}`;
+                    if(!linkedIdSet.has(targetLink)) {
+                        // console.log('Need', targetLink);
+                        const link = await jira.issueLink({
+                            type: config.xrefLinkType,
+                            inwardIssue: {
+                                key: issueKey
+                            },
+                            outwardIssue: {
+                                key: targetLink
+                            }
+                        })
+                        .catch((e) => {
+                            // errTix[`${issueKey}::${targetLink}`] = e.toString();
+                            preDescriptionJunk = preDescriptionJunk + 'h6. Orphan Xref: ' + xref + '\n\n';
+                            console.error(e);
+                        });
+                    }
+                }
+            } else {
+                if(issuelinks && issuelinks.length) {
+                    console.log('Huh, ', `xref unset but ${issuelinks.length} links in JIRA (we may not care?)`);
+                }
+            }
+
+            // Component is an array
+            const componentId = await nameToComponentId(component);
+            if(componentId) {
+                if((components[0] || {}).id !== componentId) {
+                    fields.components = [{id: componentId }];
+                }
+            } else {
+                if(component) {
+                    // errTix[`component-${component}`] = 'not in jira';
+                    preDescriptionJunk = preDescriptionJunk + 'h6. Deleted Component: ' + component + '\n\n';
+                }
+                if((components[0] || {}).id) {
+                    fields.components = null; // set to no component.
+                }
+            }
+
+            
             // Description - rendered
-            const newDescription = (await InterMapTxt).render({text: ticket.description, ticket, config, project, rev2ticket: await rev2ticket});
+            const newDescription = (await InterMapTxt).render({text: (preDescriptionJunk + ticket.description), ticket, config, project, rev2ticket: await rev2ticket});
 
             // If description is over the limit, truncate and move to a file
             if(newDescription.length > 32000) {
@@ -363,22 +431,7 @@ async function doit() {
                 }
             }
 
-            // Component is an array
-            const componentId = await nameToComponentId(component);
-            if(componentId) {
-                if((components[0] || {}).id !== componentId) {
-                    fields.components = [{id: componentId }];
-                }
-            } else {
-                if(component) {
-                    errTix[`component-${component}`] = 'not in jira';
-                }
-                if((components[0] || {}).id) {
-                    fields.components = null; // set to no component.
-                }
-            }
-
-            const priorityId = await nameToPriorityId(ticket.priority||'assess');
+            const priorityId = await nameToPriorityId(ticket.priority||'assess')|| await nameToPriorityId('assess');
             if(priorityId) {
                 if((priority||{}).id !== priorityId) {
                     fields.priority = {id: priorityId };
@@ -412,6 +465,8 @@ async function doit() {
             } else {
                 if(labels) fields.labels = null;
             }
+
+
         }
 
         // If there's any change, write it.
