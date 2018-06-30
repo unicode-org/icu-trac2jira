@@ -722,7 +722,7 @@ async function doit() {
                     }
                     if(foundCount === 0) {
                         // now we attach
-                        const attachResp = await jira.addAttachmentOnIssue(issueKey, fs.createReadStream(`${config.db.attachmentPath}/${id}/${attach.filename.replace(' ','%20')}`))
+                        const attachResp = await jira.addAttachmentOnIssue(issueKey, fs.createReadStream(`${config.db.attachmentPath}/${id}/${attach.filename.replace(/ /g,'%20')}`))
                         .catch((e) => {
                             errTix[`${id}.${attach.filename}`] = e.toString();
                             return null;
