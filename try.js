@@ -16,7 +16,7 @@ config.reporterMap = require('./reporterMap.json'); // ask sffc for this
 const InterMap = require('./lib/intermap');
 
 // Initialize
-const jira = new JiraApi(config.jira);
+const jira = new JiraApi(require('./local-auth.json').jira);
 /*
 1-liner:
 const jira = new (require('jira-client')) (require('./config.json').jira);
@@ -62,6 +62,10 @@ const allComponents = dbPromise.then(async (db) => db.all('select * from compone
 const allPriorities = dbPromise.then(async (db) => db.all('select distinct priority from ticket'))
 .then(l => l.map(v=>v.priority).filter(v => (v && v!=='(null)')));
 
+// promise to array of milestones
+const allMilestones = dbPromise.then(async db => db.all('select distinct milestone from ticket'))
+.then(l => l.map(v=>v.milestone).filter(v => (v && v.trim() && v !== 'UNSCH')));
+
 const rev2ticket = dbPromise.then(async (db) => db.all('select * from rev2ticket'))
 .then((all) => all.reduce((p,v) => {
     p[v.rev] = v.ticket;
@@ -74,6 +78,7 @@ const project = jira.getProject(config.project.name);
 const issueTypes = jira.listIssueTypes();
 const components = jira.listComponents(config.project.name);
 const priorities = jira.listPriorities(config.project.name);
+const versions = jira.getVersions(config.project.name);
 
 const nameToIssueType = issueTypes.then(async (issueTypes) => issueTypes.reduce((p,v) => {
     p[v.name] = v;
@@ -97,8 +102,21 @@ const _nameToPriority = priorities.then(async (allFields) => allFields.reduce((p
     return p;
 }, {}));
 
+const _nameToVersion = versions.then(async (allFields) => allFields.reduce((p,v) => {
+    p[v.name] = v;
+    return p;
+}, {}));
+
 async function nameToComponentId(name) {
     const n2c = await _nameToComponent;
+    const info = n2c[name];
+    if(!info) return null;
+    const {id} = info;
+    if(id) return id;
+}
+
+async function nameToVersionId(name) {
+    const n2c = await _nameToVersion;
     const info = n2c[name];
     if(!info) return null;
     const {id} = info;
@@ -243,11 +261,39 @@ async function doit() {
             addedComps++
         }
     }
+    for(name of (await allMilestones)) {
+        // const {name,description} = priority;
+        const existingId = await nameToVersionId(name);
+        if(!existingId) {
+            // let's see if we can get some metadata
+            const milestoneMeta = (await dbPromise.then(async db => db.get(`select * from milestone where name='${name}'`))) || {
+                // fallback metadata
+                name,
+                due: 0,
+                completed: 0,
+                description: `Milestone ${name} missing in trac`
+            };
+            const body = {
+                name,
+                description: (await InterMapTxt).render({text: milestoneMeta.description
+                    .replace(/(#|ticket:|icubug:)([0-9]+)/ig, `[${config.project.name}-$2]`) // more aggressive ticket linking
+                , ticket: {}, config, project, rev2ticket: await rev2ticket}),
+                project: config.project.name,
+                projectId,
+                released: (milestoneMeta.completed != 0),
+                releaseDate: new Date(milestoneMeta.completed / 1000).toISOString(),
+                releaseDateSet: (milestoneMeta.completed != 0),
+                overdue: (milestoneMeta.completed != 0)&&(new Date(milestoneMeta.due/1000).getTime() <= new Date().getTime())
+            };
+            // console.dir(body);
+            console.log('needed to add version',name);
+            await jira.createVersion(body);
+            addedComps++
+        }
+    }
     if(addedComps) {
         throw Error(`^ Just added or need to add ${addedComps} components/priorities ,please try again`);
     }
-
-    // return;
     
     const all = await allTickets;
     // const custom = await ticketCustom;
@@ -282,7 +328,7 @@ async function doit() {
         });
         if(!jiraIssue) continue; // could not load
         // console.dir(ticket, {color: true, depth: Infinity});
-        // console.dir(jiraIssue, {color: true, depth: Infinity});
+        console.dir(jiraIssue, {color: true, depth: Infinity});
         jiraId = jiraIssue.id;
         // unpack fields
         const fields = {};
@@ -290,7 +336,7 @@ async function doit() {
         // Set any fields that are wrong.
         {
             // Warning: component = trac component, components = jira component.   Yeah.
-            const {issuelinks, labels, priority, security, components,
+            const {fixVersions, issuelinks, labels, priority, security, components,
                 description, issuetype, summary, reporter, assignee} = jiraIssue.fields;
 
             // Issue Type.
@@ -367,6 +413,25 @@ async function doit() {
                 }
                 if((components[0] || {}).id) {
                     fields.components = null; // set to no component.
+                }
+            }
+
+            // So is version an array
+            const versionId = await nameToVersionId(ticket.milestone);
+            if(versionId) {
+                if((fixVersions[0] || {}).id !== versionId 
+                    || (fixVersions.length !== 1)) { // << will delete excess versions
+                    fields.fixVersions = [{id: versionId }];
+                }
+            } else {
+                // If it's not here, we assume it was rejected by the filter (UNSCH, etc)
+                // so remove.
+                // if(ticket.milestone) {
+                //     // errTix[`component-${component}`] = 'not in jira';
+                //     preDescriptionJunk = preDescriptionJunk + 'h6. Deleted Component: ' + component + '\n\n';
+                // }
+                if((fixVersions[0] || {}).id) {
+                    fields.fixVersions = null; // set to no version.
                 }
             }
 
