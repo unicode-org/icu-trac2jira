@@ -30,6 +30,8 @@ Notes:
 
 - run `node try.js` to run the converter on ALL tickets.
 
+- It's possible that if versions/components/priorities were not in sync you will get an error and have to run the tool again.  (priorities need to be added manually. sorry.)
+
 - yes `npm t` will run tests.  Tests. There are tests?!
 
 

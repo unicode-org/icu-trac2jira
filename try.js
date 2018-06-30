@@ -292,7 +292,7 @@ async function doit() {
         }
     }
     if(addedComps) {
-        throw Error(`^ Just added or need to add ${addedComps} components/priorities ,please try again`);
+        throw Error(`^ Just added or need to add ${addedComps} components/priorities/versions ,please try again`);
     }
     
     const all = await allTickets;
