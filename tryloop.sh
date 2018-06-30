@@ -9,5 +9,6 @@ do
     where="where id >= $lower and id < $upper"
     echo $where
     time node try.js "${where}" 2>&1 | tee local-out${k}.txt&
+    echo $! > local-pid${k}.txt
 done
 # $ node try.js 'where id = 12002'
