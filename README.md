@@ -1,9 +1,12 @@
 ### ICU's Trac to JIRA converter
 
 to use:
-- npm i
-- you will need a `reporterMap.json` file also
-- create a `config.json` as follows:
+- node version 8 or later required
+- `npm i`
+
+- modify `config.json` so that `db.path` points to the sqlite3 trac database dump and `db.attachmentPath` points to the `/ticket/` subdirectory of the trac attachments.  ALso `project.name` sets with PROJECT will be modified.
+
+- create a `local-auth.json` as follows. If you have 2FA (you do, right?) you will need to use an API token instead of your password - https://id.atlassian.com/manage/api-tokens#
 
 ```json
 {
@@ -14,47 +17,20 @@ to use:
         "password": "hunter42",
         "apiVersion": "2",
         "strictSSL": true
-    },
-    "db": {
-        "path": "../trac-db2.sqlite"
-    },
-    "project": {
-        "name": "ICU"
-    },
-    "mapFields": {
-        "id": "tracid",
-        "owner": "tracOwner",
-        "reporter": "tracReporter"
-    },
-    "mapTypes": {
-        "defect": "Bug",
-        "enhancement": "New Feature",
-        "task": "Task",
-        "improvement": "Improvement",
-        "design": "Epic"
     }
 }
 ```
-
 
 
 Notes:
 
 - this is an incremental conversion. you can run it lots of times.
 
-- with 2fa use an API token instead of your password - https://id.atlassian.com/manage/api-tokens#
+- to just convert 1 ticket, etc. use a SQL query: `node try.js 'where id=13472'`
 
-- to just convert 1 ticket: `node try.js 'where id=13472'`
+- run `node try.js` to run the converter on ALL tickets.
 
-- run `node try.js` to run the converter.
-
-- `trac-old2new.json` (path above) will be created if it doesn't exist. This is the persistent DB for mapping trac to jira ids
-
-- to make the trac links:
-
-`node dumplink.js`
-
-… this will output to the `traclinks` directory listed in the config file.
+- yes `npm t` will run tests.  Tests. There are tests?!
 
 
 - Copyright (C) 2016 and later: Unicode, Inc. and others.

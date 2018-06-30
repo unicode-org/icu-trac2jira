@@ -1,0 +1,39 @@
+{
+    "db": {
+        "path": "../TRACDB/trac-2.db",
+        "attachmentPath": "../TRACDB/attachments-ticket/ticket/"
+    },
+    "project": {
+        "name": "TRACTST"
+    },
+    "mapFields": {
+        "id": "tracid",
+        "owner": "tracOwner",
+        "reporter": "tracReporter",
+        "time": "tracCreated",
+        "revw": "tracReviewer"
+    },
+    "mapTypes": {
+        "defect": "Bug",
+        "enhancement": "New Feature",
+        "task": "Task",
+        "improvement": "Improvement",
+        "design": "Design",
+        "unknown": "Bug",
+        "api": "API",
+        "tests": "Tests",
+        "apidocs": "API Docs",
+        "userguide": "Userguide",
+        "ongoing": "Ongoing"
+    },
+    "mapStatus": {
+        
+    },
+    "security": {
+        "sensitive": "10000",
+        "public": null
+    },
+    "xrefLinkType": {
+        "id": "10003" 
+    }
+}
