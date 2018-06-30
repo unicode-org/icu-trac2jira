@@ -358,8 +358,8 @@ async function doit() {
             }
 
             // Summary.
-            if(summary !== ticket.summary) {
-                fields.summary = ticket.summary;
+            if(summary !== (ticket.summary || '(no summary)')) {
+                fields.summary = (ticket.summary || '(no summary)');
             }
 
             let preDescriptionJunk = '';
@@ -647,9 +647,21 @@ async function doit() {
                     // console.dir(comment);
                     const jiraCommentOwner = config.reporterMap[comment.author];
                     const commentAuthor = (jiraCommentOwner&&jiraCommentOwner.name)?`[~${jiraCommentOwner.name}]`:`${obfuscate(comment.author)}`;
-                    const body = 
+                    let body = 
                         `h6. Trac Comment ${comment.oldvalue} by ${commentAuthor}—${new Date(comment.time/1000).toISOString()}\n` +
                         (await InterMapTxt).render({text: comment.newvalue, ticket, config, project, rev2ticket: await rev2ticket});
+                    // If description is over the limit, truncate and move to a file
+                    if(body.length > 32000) {
+                        await mkdirp(`${config.db.attachmentPath}/${id}/`);
+                        fs.writeFileSync(`${config.db.attachmentPath}/${id}/${issueKey}.${comment.oldvalue||n}.txt`, comment.newvalue, 'utf-8');
+                        const abt = (await attachmentsByTicket);
+                        abt[id] = abt[id] || [];
+                        abt[id].push({
+                            filename: `${issueKey}.${comment.oldvalue||n}.txt`
+                        });
+                        body = `h1. Text from ${commentAuthor} was too large\n\nLimit is about (${comment.newvalue.length}, >32k)\nSee attached ${issueKey}-${comment.oldvalue||n}.txt for original text.\n`;
+                        ticket.keywords = (ticket.keywords||'')+' jira-overlong-description';
+                    }
                     if(!jiraComment) {
                         // no jiraComment - add it.
                         const newComment = await jira.addComment(issueKey, body)
@@ -710,7 +722,7 @@ async function doit() {
                     }
                     if(foundCount === 0) {
                         // now we attach
-                        const attachResp = await jira.addAttachmentOnIssue(issueKey, fs.createReadStream(`${config.db.attachmentPath}/${id}/${attach.filename}`))
+                        const attachResp = await jira.addAttachmentOnIssue(issueKey, fs.createReadStream(`${config.db.attachmentPath}/${id}/${attach.filename.replace(' ','%20')}`))
                         .catch((e) => {
                             errTix[`${id}.${attach.filename}`] = e.toString();
                             return null;
