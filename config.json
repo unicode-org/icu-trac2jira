@@ -4,7 +4,7 @@
         "attachmentPath": "../TRACDB/attachments-ticket/ticket/"
     },
     "project": {
-        "name": "TRACTST"
+        "name": "ICU"
     },
     "mapFields": {
         "id": "tracid",

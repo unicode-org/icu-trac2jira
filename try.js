@@ -722,7 +722,13 @@ async function doit() {
                     }
                     if(foundCount === 0) {
                         // now we attach
-                        const attachResp = await jira.addAttachmentOnIssue(issueKey, fs.createReadStream(`${config.db.attachmentPath}/${id}/${attach.filename.replace(/ /g,'%20')}`))
+                        const subpath = attach.filename
+                            .replace(/ /g,'%20')
+                            .replace(/\[/g,'%5B')
+                            .replace(/\$/g,'%24')
+                            .replace(/\]/g,'%5D'); // hmm, do you think just maybe there might be a pattern here?
+                        const filename = `${config.db.attachmentPath}/${id}/${subpath}`;
+                        const attachResp = await jira.addAttachmentOnIssue(issueKey, fs.createReadStream(filename))
                         .catch((e) => {
                             errTix[`${id}.${attach.filename}`] = e.toString();
                             return null;
