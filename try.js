@@ -87,6 +87,9 @@ const nameToIssueType = issueTypes.then(async (issueTypes) => issueTypes.reduce(
 
 const allFields = jira.listFields();
 
+Promise.all([project, issueTypes, ticketCount, components, priorities, versions, statuses, nameToIssueType,
+jira, allTickets]).then(() => {}, (e) => console.error(e))
+
 const nameToFieldId = allFields.then(async (allFields) => allFields.reduce((p,v) => {
     p[v.name] = v;
     return p;
@@ -213,10 +216,12 @@ async function getFieldIdFromMap(mapId) {
     const customName = config.mapFields[mapId];
     if (!customName) throw Error(`no customName for ${mapId}`);
     const subMap = await nameToFieldId;
-    const {key} = subMap[customName];
-    if (!key) throw Error(`No key for ${customName} (${mapId})`);
+    if(!subMap[customName]) throw Error(`Need to create custom field ${customName}`);
+    const {key, id} = subMap[customName];
+    // console.log(subMap[customName].id)
+    if (!key && !id ) throw Error(`No key or id for ${customName} (${mapId}) - have ${Object.keys(subMap[customName])}`);
     // console.log(mapId,customName,customId);
-    return key;
+    return key || id;
 }
 
 const updTix = {};
@@ -265,7 +270,7 @@ async function doit() {
                 project: config.project.name,
                 projectId
             };
-            console.log('need to add priority',name);
+            console.log('need to add priority MANUALLY',name);
             // hack: add it back to the cache
             // Ooops - can't do this from the API
             // await jira.addNewPriority(body);
@@ -480,10 +485,15 @@ async function doit() {
                 // ticket.keywords = (ticket.keywords||'')+` status-${wantStatus} resolution-${wantResolution}`;
 
             }
-
-            setIfNotSet(await getFieldIdFromMap('project'), ticket.project);
-            setIfNotSet(await getFieldIdFromMap('weeks'), Number(ticket.weeks));
-            setIfNotSet(await getFieldIdFromMap('cc'), (ticket.cc||'').split(/[, ]+/).map(e => obfuscate(e)).sort().join(','));
+            if(config.mapFields.project) {
+                setIfNotSet(await getFieldIdFromMap('project'), ticket.project);
+            }
+            if(config.mapFields.weeks) {
+                setIfNotSet(await getFieldIdFromMap('weeks'), Number(ticket.weeks));
+            }
+            if(config.mapFields.cc) {
+                setIfNotSet(await getFieldIdFromMap('cc'), (ticket.cc||'').split(/[, ]+/).map(e => obfuscate(e)).sort().join(','));
+            }
 
 
             // Reporter
@@ -510,10 +520,16 @@ async function doit() {
             }
 
             // setIfNotSet(await getFieldIdFromMap('id'), id.toString());
-            setIfNotSet(await getFieldIdFromMap('reporter'), obfuscate(ticket.reporter));
-            setIfNotSet(await getFieldIdFromMap('owner'), ticket.owner);
-            setIfNotSet(await getFieldIdFromMap('revw'), ticket.revw);
-            {
+            if(config.mapFields.reporter) {
+                setIfNotSet(await getFieldIdFromMap('reporter'), obfuscate(ticket.reporter));
+            }
+            if(config.mapFields.owner) {
+                setIfNotSet(await getFieldIdFromMap('owner'), ticket.owner);
+            }
+            if(config.mapFields.revw) {
+                setIfNotSet(await getFieldIdFromMap('revw'), ticket.revw);
+            }
+            if(config.mapFields.time) {
                 const timeField = await getFieldIdFromMap('time');
                 const jiraTime = new Date(jiraIssue.fields[timeField] || 0);
                 const tracTime = new Date(ticket.time/1000);
@@ -615,6 +631,9 @@ async function doit() {
         // * ticket|time|author|field|oldvalue|newvalue
         // * 13828|1528927025850017|shane|comment|3|LGTM
         // COMMENTS
+        if(true) {
+            console.log('-- skipping comment update for now on ', id)
+        } else
         {
             const comments = ((await allCommentsByTicket)[id])||[]; // at least []
             const jiraComments = ((((jiraIssue||{}).fields.comment)||{}).comments) || []; // at least []
