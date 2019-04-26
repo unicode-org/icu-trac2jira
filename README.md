@@ -1,7 +1,7 @@
 ### ICU's Trac to JIRA converter
 
 to use:
-- node version 8 or later required
+- node version 8 required. (Seems to be requiring exactly 8 at the moment.)
 - `npm i`
 
 - modify `config.json` so that `db.path` points to the sqlite3 trac database dump and `db.attachmentPath` points to the `/ticket/` subdirectory of the trac attachments.  ALso `project.name` sets with PROJECT will be modified.
