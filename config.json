@@ -1,13 +1,21 @@
 {
     "db": {
-        "path": ".../uni-backups/backups/backup-cldr-trac/db/trac.db",
-        "attachmentPath": "../uni-backups/backups/backup-cldr-trac/attachments/ticket/"
+        "path": "/Users/srl/src/uni-backups/backups/backup-cldr-trac/db/trac.db",
+        "attachmentPath": "/Users/srl/src/uni-backups/backups/backup-cldr-trac/attachments/ticket/"
     },
     "project": {
-        "name": "CLDR"
+        "name": "TEST"
     },
     "mapFields": {
-        "id": "tracid",
+        "id": "tracId",
+        "owner": "tracOwner",
+        "status": "tracStatus",
+        "resolution": "tracResolution",
+        "reporter": "tracReporter"
+    },
+    "_mapFields": {
+        "time": "tracCreated",
+        "id": "tracId",
         "owner": "tracOwner",
         "reporter": "tracReporter",
         "time": "tracCreated",
@@ -15,10 +23,9 @@
         "status": "tracStatus",
         "resolution": "tracResolution",
         "weeks": "tracWeeks",
-        "project": "tracProject",
         "cc": "tracCc"
     },
-    "mapTypes": {
+    "_mapTypes": {
         "defect": "Bug",
         "enhancement": "New Feature",
         "task": "Task",

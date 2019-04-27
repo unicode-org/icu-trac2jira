@@ -87,8 +87,6 @@ const nameToIssueType = issueTypes.then(async (issueTypes) => issueTypes.reduce(
 
 const allFields = jira.listFields();
 
-Promise.all([project, issueTypes, ticketCount, components, priorities, versions, statuses, nameToIssueType,
-jira, allTickets]).then(() => {}, (e) => console.error(e))
 
 const nameToFieldId = allFields.then(async (allFields) => allFields.reduce((p,v) => {
     p[v.name] = v;
@@ -191,9 +189,18 @@ const InterMapTxt = getWiki('InterMapTxt')
 .then((m) => m.text)
 .then((l) => new InterMap(l));
 
-async function forTracType(type) {
+/* async */ function forTracType(type) {
+    if(!config.mapTypes) {
+        // We don't care. Not using types.
+        return forJiraIssueType(type, 'Bug');
+    }
+
     const jiraType = config.mapTypes[type];
     if(!jiraType) throw Error(`Unknown trac ticket type ${type} (check mapTypes)`);
+    return forJiraIssueType(type, jiraType);
+}
+
+async function forJiraIssueType(type, jiraType) {   
     const map = await nameToIssueType;
     const jiraIssueType = map[jiraType];
     if(!jiraIssueType) throw Error(`Unknown Jira type ${jiraType} (for ${type} - check mapTypes and JIRA`);
@@ -790,3 +797,19 @@ doit()
         postscript();
     }
 });
+
+Promise.all([
+    allCommentsByTicket,
+
+    attachmentsByTicket,
+    allFields,
+    project, issueTypes, ticketCount, components, priorities, versions, statuses, nameToIssueType,
+jira, allTickets,
+
+    _nameToComponent,
+    _nameToPriority,
+    _nameToVersion,
+    _nameToStatus,
+    
+
+    ]).then(() => {}, (e) => console.error(e))
