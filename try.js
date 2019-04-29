@@ -38,6 +38,7 @@ console.log('ticket filter:', ticketwhere);
 const allTickets = dbPromise.then(async (db) => db.all(`select * from ticket ${ticketwhere}`));
 
 async function getReporter(tracReporter) {
+    if(!tracReporter) return null;
     // Trac reporter
     let reporterEntry = config.reporterMap[tracReporter] || config.reporterMap.nobody;
     if(!reporterEntry.name && !reporterEntry.accountId) {
@@ -524,7 +525,8 @@ async function doit() {
                 setIfNotSet(await getFieldIdFromMap('owner'), ticket.owner);
             }
             if(config.mapFields.revw) {
-                setIfNotSet(await getFieldIdFromMap('revw'), ticket.revw);
+                console.log('review field', await getFieldIdFromMap('revw'), ticket.revw);
+                setIfNotSet(await getFieldIdFromMap('revw'), await getReporter(ticket.revw));
             }
             if(config.mapFields.time) {
                 const timeField = await getFieldIdFromMap('time');
