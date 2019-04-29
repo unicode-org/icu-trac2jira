@@ -23,6 +23,13 @@ const jira = new JiraApi(require('./local-auth.json').jira);
 const jira = new (require('jira-client')) (require('./config.json').jira);
 */
 
+// Fetch users that we don't have the name for
+async function getUserByAccountId(accountId) {
+    return jira.doRequest(jira.makeRequestHeader(jira.makeUri({
+          pathname: "/user?accountId=".concat(accountId)
+        })));
+}
+
 // Promise for main Trac DB
 const dbPromise = sqlite.open(config.db.path, { cached: true });
 // const Old2New = require('./lib/old2new');
@@ -37,12 +44,38 @@ console.log('ticket filter:', ticketwhere);
 // @@@ NOTE: this controls which tickets are imported. 
 const allTickets = dbPromise.then(async (db) => db.all(`select * from ticket ${ticketwhere}`));
 
+/**
+ * This always returns something valid. can be an accountid
+ * @param {String} tracReporter - trac id
+ */
 async function getReporter(tracReporter) {
     if(!tracReporter) return null;
     // Trac reporter
     let reporterEntry = config.reporterMap[tracReporter] || config.reporterMap.nobody;
     if(!reporterEntry.name && !reporterEntry.accountId) {
         throw Error('No name or key for ' + tracReporter + ' - ' + JSON.stringify(reporterEntry));
+    }
+    return reporterEntry;
+}
+
+/**
+ * @param {String} tracReporter - trac id
+ */
+async function getReporterWithName(tracReporter) {
+    if(!tracReporter) return null;
+    let reporterEntry = config.reporterMap[tracReporter];
+    if(!reporterEntry) return null;
+
+    if(!reporterEntry.name && reporterEntry.accountId) {
+        // Go fish.
+        const reporterValue = await getUserByAccountId(reporterEntry.accountId);
+        // console.dir(reporterValue);
+        // throw Error('Foo');
+        reporterEntry.name = reporterValue.name;
+        reporterEntry.key = reporterEntry.key;
+        reporterEntry.displayName = reporterEntry.displayName;
+
+        console.log('Resolved', reporterValue.name, 'from', reporterEntry.accountId);
     }
     return reporterEntry;
 }
@@ -650,7 +683,7 @@ async function doit() {
         // * ticket|time|author|field|oldvalue|newvalue
         // * 13828|1528927025850017|shane|comment|3|LGTM
         // COMMENTS
-        if(true) {
+        if(false) {
             console.log('-- skipping comment update for now on ', id)
         } else
         {
@@ -683,8 +716,7 @@ async function doit() {
                     const jiraComment = (jiraComments||{})[n++]; // Try to find nth comment or null
                     const errKey = `${issueKey}.${(jiraComment||{}).id || n}`;
                     // console.dir(comment);
-                    const jiraCommentOwner = config.reporterMap[comment.author];
-                    console.error('TODO: getReportrer..');
+                    const jiraCommentOwner = await getReporterWithName(comment.author);
                     const commentAuthor = (jiraCommentOwner&&jiraCommentOwner.name)?`[~${jiraCommentOwner.name}]`:`${obfuscate(comment.author)}`;
                     let body = 
                         `h6. Trac Comment ${comment.oldvalue} by ${commentAuthor}—${new Date(comment.time/1000).toISOString()}\n` +
