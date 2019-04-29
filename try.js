@@ -30,6 +30,17 @@ async function getUserByAccountId(accountId) {
         })));
 }
 
+async function deleteAttachment(attachmentId) {
+    // DELETE /rest/api/2/attachment/{id}
+    return jira.doRequest(jira.makeRequestHeader(jira.makeUri({
+        pathname: "/attachment/".concat(attachmentId),
+      }),
+      {
+        followAllRedirects: true,
+        method: 'DELETE'
+      }));
+}
+
 // Promise for main Trac DB
 const dbPromise = sqlite.open(config.db.path, { cached: true });
 // const Old2New = require('./lib/old2new');
@@ -679,7 +690,7 @@ async function doit() {
         //     }
         // }
 
-        // TODO: create pseudo attachments for long descriptions or comments
+        // TODO: create pseudo attachments for long comments
         // * ticket|time|author|field|oldvalue|newvalue
         // * 13828|1528927025850017|shane|comment|3|LGTM
         // COMMENTS
@@ -779,25 +790,28 @@ async function doit() {
         {
             const attaches = (await attachmentsByTicket)[id];
             if(attaches && attaches.length) {
+                // console.dir({attaches, jattach: jiraIssue.fields.attachment});
                 // For each attachment
                 for(const attach of attaches) {
                     // console.dir(attach);
                     // Do we have this attachment already?
+                    const subpath = attach.filename
+                        .replace(/ /g,'%20')
+                        .replace(/\[/g,'%5B')
+                        .replace(/\$/g,'%24')
+                        .replace(/\]/g,'%5D'); // hmm, do you think just maybe there might be a pattern here?
                     let foundCount = 0;
                     for(const jattach of (jiraIssue.fields.attachment || [])) {
-                        if(jattach.filename === attach.filename) {
+                        if(jattach.filename === attach.filename || jattach.filename === subpath) {
                             foundCount++;
-                        // } else {
-                        //     console.log('mismatch',jattach.filename, attach.filename);
+                            if(foundCount > 1) {
+                                console.error('Delete extra attachment ' + jattach.id + ' from ' + id);
+                                await deleteAttachment(jattach.id);
+                            }
                         }
                     }
                     if(foundCount === 0) {
                         // now we attach
-                        const subpath = attach.filename
-                            .replace(/ /g,'%20')
-                            .replace(/\[/g,'%5B')
-                            .replace(/\$/g,'%24')
-                            .replace(/\]/g,'%5D'); // hmm, do you think just maybe there might be a pattern here?
                         const filename = `${config.db.attachmentPath}/${id}/${subpath}`;
                         const attachResp = await jira.addAttachmentOnIssue(issueKey, fs.createReadStream(filename))
                         .catch((e) => {
