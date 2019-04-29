@@ -13,6 +13,7 @@ const mkdirp = require('mkdirp-then');
 
 config.reporterMap = require('./reporterMap.json'); // ask sffc for this
 
+
 const InterMap = require('./lib/intermap');
 
 // Initialize
@@ -36,6 +37,14 @@ console.log('ticket filter:', ticketwhere);
 // @@@ NOTE: this controls which tickets are imported. 
 const allTickets = dbPromise.then(async (db) => db.all(`select * from ticket ${ticketwhere}`));
 
+async function getReporter(tracReporter) {
+    // Trac reporter
+    let reporterEntry = config.reporterMap[tracReporter] || config.reporterMap.nobody;
+    if(!reporterEntry.name && !reporterEntry.accountId) {
+        throw Error('No name or key for ' + tracReporter + ' - ' + JSON.stringify(reporterEntry));
+    }
+    return reporterEntry;
+}
 
 /*
  * ticket|time|author|field|oldvalue|newvalue
@@ -209,15 +218,16 @@ async function forJiraIssueType(type, jiraType) {
     // (await nameToIssueType)[config.mapTypes[ticket.type]]}    
 }
 
-function getReporter(r) {
-    if(!r) return undefined;
-    const name = config.reporterMap[r];
-    if(name) {
-        return {name};
-    } else {
-        return undefined;
-    }
-}
+// seems unused
+// function getReporter(r) {
+//     if(!r) return undefined;
+//     const name = config.reporterMap[r];
+//     if(name) {
+//         return {name};
+//     } else {
+//         return undefined;
+//     }
+// }
 
 async function getFieldIdFromMap(mapId) {
     const customName = config.mapFields[mapId];
@@ -503,22 +513,12 @@ async function doit() {
                 setIfNotSet(await getFieldIdFromMap('cc'), (ticket.cc||'').split(/[, ]+/).map(e => obfuscate(e)).sort().join(','));
             }
 
+            // Reporter
+            fields.reporter = await getReporter(ticket.reporter);
 
             // Reporter
             // Trac reporter
-            const reporterKey = (config.reporterMap[ticket.reporter] || config.reporterMap.nobody || {}).name;
-            if(reporterKey && reporterKey != (reporter||{}).name) {
-                // JIRA reporter
-                fields.reporter = { name: reporterKey };
-            }
-
-            // Reporter
-            // Trac reporter
-            const ownerKey = (config.reporterMap[ticket.owner] || config.reporterMap.nobody || {}).name;
-            if(ownerKey && ownerKey != (assignee||{}).name) {
-                // JIRA reporter
-                fields.assignee = { name: ownerKey };
-            }
+            fields.assignee = await getReporter(ticket.owner);
 
             function setIfNotSet(k,v) {
                 if(v == '' || !v) v = null; // prevent noise.
@@ -673,6 +673,7 @@ async function doit() {
                     const errKey = `${issueKey}.${(jiraComment||{}).id || n}`;
                     // console.dir(comment);
                     const jiraCommentOwner = config.reporterMap[comment.author];
+                    console.error('TODO: getReportrer..');
                     const commentAuthor = (jiraCommentOwner&&jiraCommentOwner.name)?`[~${jiraCommentOwner.name}]`:`${obfuscate(comment.author)}`;
                     let body = 
                         `h6. Trac Comment ${comment.oldvalue} by ${commentAuthor}—${new Date(comment.time/1000).toISOString()}\n` +
