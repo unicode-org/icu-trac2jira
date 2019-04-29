@@ -218,17 +218,6 @@ async function forJiraIssueType(type, jiraType) {
     // (await nameToIssueType)[config.mapTypes[ticket.type]]}    
 }
 
-// seems unused
-// function getReporter(r) {
-//     if(!r) return undefined;
-//     const name = config.reporterMap[r];
-//     if(name) {
-//         return {name};
-//     } else {
-//         return undefined;
-//     }
-// }
-
 async function getFieldIdFromMap(mapId) {
     const customName = config.mapFields[mapId];
     if (!customName) throw Error(`no customName for ${mapId}`);
