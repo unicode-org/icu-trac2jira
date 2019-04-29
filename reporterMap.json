@@ -2,12 +2,14 @@
  "yoshito": {
   "accountId": "5b295586e379aa18a9ef35b8",
   "name": "yoshito_umaoka",
-  "key": "yoshito_umaoka"
+  "key": "yoshito_umaoka",
+  "github": "yumaoka"
  },
  "pedberg": {
   "accountId": "5b29558fe478c9080efacbde",
   "name": "pedberg",
-  "key": "pedberg"
+  "key": "pedberg",
+  "github": "pedberg-icu"
  },
  "jugu": {
   "accountId": "557058:a3f5e58c-a17f-495f-a877-facf970cbad1",
@@ -52,7 +54,8 @@
  "mark": {
   "accountId": "5b1fa41abe73de20759a87c2",
   "name": "mark.edward.davis",
-  "key": "mark.edward.davis"
+  "key": "mark.edward.davis",
+  "github": "macchiati"
  },
  "norbert": {
   "accountId": "5b353e6fddd2363f6305441b",
@@ -72,7 +75,8 @@
  "grhoten": {
   "accountId": "5b353e692975df4c55ea7af1",
   "name": "grhoten",
-  "key": "grhoten"
+  "key": "grhoten",
+  "github": "grhoten"
  },
  "krajwade": {
   "accountId": "5b353e646f00c836f6506e47",
@@ -97,7 +101,8 @@
  "srl": {
   "accountId": "5af4a8718a1abd1427952ed9",
   "name": "srl295",
-  "key": "srl295"
+  "key": "srl295",
+  "github": "srl295"
  },
  "googler": {
   "accountId": "5b353e563107e84c4f6471b2",
@@ -122,7 +127,8 @@
  "jefgen": {
   "accountId": "5af6144a772036612ff62108",
   "name": "jeff.genovy",
-  "key": "jeff.genovy"
+  "key": "jeff.genovy",
+  "github": "jefgen"
  },
  "shawnste": {
   "accountId": "5b353e68fa7c4336fcbda652",
@@ -157,7 +163,8 @@
  "emmons": {
   "accountId": "5b353e5c1434ca6683d9b0ad",
   "name": "emmo",
-  "key": "emmo"
+  "key": "emmo",
+  "github": "JCEmmons"
  },
  "dbesevic": {
   "accountId": "5b295585a85c48535467e2b2",
@@ -168,5 +175,41 @@
   "accountId": "5b34954eddd2363f63053eec",
   "name": "apibot",
   "key": "sffc+apibot"
+ },
+ "deborah": {
+  "github": "debbiegoldsmith",
+  "accountId": "5cc3647a788c400fcdced1c9"
+ },
+ "shawn": {
+  "github": "",
+  "accountId": "5b353e68fa7c4336fcbda652"
+ },
+ "meikeh": {
+  "github": "meikehubert",
+  "accountId": "5c623bba27daf22edc5da803"
+ },
+ "fredrik": {
+  "github": "stenshamn",
+  "accountId": "5c9b9851b16b72370c20b5f3"
+ },
+ "kristi": {
+  "github": "Kristi27",
+  "accountId": "5ca62348fa160e67c4025b49"
+ },
+ "tbishop": {
+  "github": "btangmu",
+  "accountId": "5cae14ea9c21b237caab46fc"
+ },
+ "agustin": {
+  "github": "agustd",
+  "accountId": "5cc093fa651cc911dd446583"
+ },
+ "rick": {
+  "github": "rickmcgowan",
+  "accountId": "5b2957469ba6d02662e2f7b4"
+ },
+ "parth": {
+  "github": "pgaglani1",
+  "accountId": "5cc08c51c2e4550e3df42501"
  }
 }
