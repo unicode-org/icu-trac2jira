@@ -299,7 +299,8 @@ async function doit() {
             const body = {
                 name,
                 description: (await InterMapTxt).render({text: milestoneMeta.description
-                    .replace(/(#|ticket:|icubug:)([0-9]+)/ig, `[${config.project.name}-$2]`) // more aggressive ticket linking
+                    .replace(/(#|ticket:|cldrbug:)([0-9]+)/ig, `[${config.project.name}-$2]`) // more aggressive ticket linking
+                    // .replace(/(#|ticket:|icubug:)([0-9]+)/ig, `[${config.project.name}-$2]`) // more aggressive ticket linking
                 , ticket: {}, config, project, rev2ticket: await rev2ticket}),
                 project: config.project.name,
                 projectId,
