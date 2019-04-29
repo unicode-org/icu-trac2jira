@@ -502,6 +502,26 @@ async function doit() {
             if(config.mapFields.cc) {
                 setIfNotSet(await getFieldIdFromMap('cc'), (ticket.cc||'').split(/[, ]+/).map(e => obfuscate(e)).sort().join(','));
             }
+            // TODO: watchers.
+
+            if(config.mapFields.xpath) {
+                const value = ticket.xpath.replace(/[ ]+/g, '\n').trim();
+                if(value) {
+                    setIfNotSet(await getFieldIdFromMap('xpath'), 
+                        {value});
+                } else {
+                    setIfNotSet(await getFieldIdFromMap('xpath'), 
+                        null);
+                }
+            }
+            if(config.mapFields.locale) {
+                const value = ticket.locale.replace(/[, ]+/g, '\n').trim();
+                setIfNotSet(await getFieldIdFromMap('locale'),
+                value);
+    }
+            if(config.mapFields.phase) {
+                setIfNotSet(await getFieldIdFromMap('phase'), {value: ticket.phase});
+            }
 
             // Reporter
             fields.reporter = await getReporter(ticket.reporter);

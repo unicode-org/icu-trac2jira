@@ -11,18 +11,15 @@
         "owner": "tracOwner",
         "status": "tracStatus",
         "resolution": "tracResolution",
-        "reporter": "tracReporter"
+        "reporter": "tracReporter",
+        "revw": "Reviewer",
+        "locale": "locale",
+        "xpath": "xpath",
+        "phase": "phase"
     },
     "_mapFields": {
         "time": "tracCreated",
-        "id": "tracId",
-        "owner": "tracOwner",
-        "reporter": "tracReporter",
-        "time": "tracCreated",
-        "revw": "tracReviewer",
         "status": "tracStatus",
-        "resolution": "tracResolution",
-        "weeks": "tracWeeks",
         "cc": "tracCc"
     },
     "_mapTypes": {
