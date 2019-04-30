@@ -854,10 +854,10 @@ async function doit() {
                             return null;
                         });
                         if(attachResp ) {
+                            const ticketId = id;
                             if(attachResp && attachResp.length === 1) {
-                                const ticketId = id;
                                 const {id, filename, size, mimeType} = attachResp[0];
-                                console.log(`\n + ${chalk.purple([id, filename, size, mimeType].join(' '))}\n`);
+                                console.log(`${chalk.dim(ticketId)} + ${chalk.bold.blue([id, filename, Number(size).toLocaleString()+'b', mimeType].join(' '))}\n`);
                             } else {
                                 console.dir({attachResp});
                             }
