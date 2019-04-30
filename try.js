@@ -86,7 +86,7 @@ async function getReporterWithName(tracReporter) {
         reporterEntry.key = reporterEntry.key;
         reporterEntry.displayName = reporterEntry.displayName;
 
-        console.log('Resolved', reporterValue.name, 'from', reporterEntry.accountId);
+        // console.log('Resolved', reporterValue.name, 'from', reporterEntry.accountId);
     }
     return reporterEntry;
 }
@@ -372,7 +372,8 @@ async function doit() {
     for(ticket of all) {
         // console.log('Considering', ticket);
         const {id, summary, description} = ticket;
-        console.log(id, summary);
+        process.stdout.write(`${id}: ${summary.substr(0, 40)} `);
+        // console.log(id, summary);
         // return;
         // make custom fields look like real fields
         Object.assign(ticket, await custom(id));
@@ -464,7 +465,7 @@ async function doit() {
                 }
             } else {
                 if(issuelinks && issuelinks.length) {
-                    console.log('Huh, ', `xref unset but ${issuelinks.length} links in JIRA (we may not care?)`);
+                    // console.log('Huh, ', `xref unset but ${issuelinks.length} links in JIRA- Probably incoming xrefs.`);
                 }
             }
 
@@ -655,7 +656,9 @@ async function doit() {
 
         // If there's any change, write it.
         if(Object.keys(fields).length > 0) {
-            console.dir({id, issueKey, jiraId, fields}, {color: true, depth: Infinity});
+            //console.dir({id, issueKey, jiraId, fields}, {color: true, depth: Infinity});
+            process.stdout.write(`\r${id}:   Change   ${summary.substr(0,40)}         \n`);
+            console.log('≈', Object.keys(fields).join(', '));
             const ret = await jira.updateIssue(issueKey, {fields, notifyUsers: false})
             .catch((e) => {
                 errTix[issueKey] = e.errors || e.message || e.toString();
@@ -665,7 +668,8 @@ async function doit() {
             updTix[issueKey] =  ret;
             // console.dir(ret);
         } else {
-            console.log('No change:', id, issueKey, jiraId);
+            process.stdout.write(`\r${id} No Change =======================                  \n`);
+            // console.log(' ', 'No change:', id, issueKey, jiraId);
         }
 
         // const wantStatus = (ticket.status || 'new');
