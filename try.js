@@ -674,7 +674,7 @@ async function doit() {
         if(Object.keys(fields).length > 0) {
             //console.dir({id, issueKey, jiraId, fields}, {color: true, depth: Infinity});
             const changedSet = Object.keys(fields).map(f => fieldIdToName(f));
-            process.stdout.write(`\r${chalk.bold(id)}: ≈ ${chalk.green(summary.substr(0,10))} ≈ ${chalk.blue((await Promise.all(changedSet)).join(','))}                       \n`);
+            process.stdout.write(`\r${chalk.yellow(id)}: ≈ ${chalk.green(summary.substr(0,10))} ≈ ${chalk.blue((await Promise.all(changedSet)).join(','))}                       \r`);
             // console.log('≈', Object.keys(fields).join(', '));
             const ret = await jira.updateIssue(issueKey, {fields, notifyUsers: false})
             .catch((e) => {
@@ -682,6 +682,7 @@ async function doit() {
                 // console.error(e);
                 return {error: e.errorss || e.message || e.toString()};
             });
+            process.stdout.write(`${chalk.bold(id)}!\n`);
             updTix[issueKey] =  ret;
             // console.dir(ret);
         } else {
@@ -853,14 +854,19 @@ async function doit() {
                             return null;
                         });
                         if(attachResp ) {
-                            console.dir(attachResp);
+                            if(attachResp && attachResp.length === 1) {
+                                const ticketId = id;
+                                const {id, filename, size, mimeType} = attachResp[0];
+                                console.log(`\n + ${chalk.purple([id, filename, size, mimeType].join(' '))}\n`);
+                            } else {
+                                console.dir({attachResp});
+                            }
                         }
                     }
                 }
             }
         }                        
     }
-
 }
 
 /**
