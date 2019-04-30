@@ -10,6 +10,7 @@ const config = require('./config.json');
 const fs = require('fs');
 const obfuscate = require('./lib/obfuscateEmail');
 const mkdirp = require('mkdirp-then');
+const chalk = require('chalk');
 
 config.reporterMap = require('./reporterMap.json'); // ask sffc for this
 
@@ -146,6 +147,14 @@ const nameToFieldId = allFields.then(async (allFields) => allFields.reduce((p,v)
     p[v.name] = v;
     return p;
 }, {}));
+
+async function fieldIdToName(f) {
+    const n2f = await nameToFieldId;
+    for([k,v] of Object.entries(n2f)) {
+        if(v && (v.id === f)) return k;
+    }
+    return f;
+}
 
 const _nameToComponent = components.then(async (allFields) => allFields.reduce((p,v) => {
     p[v.name] = v;
@@ -372,7 +381,7 @@ async function doit() {
     for(ticket of all) {
         // console.log('Considering', ticket);
         const {id, summary, description} = ticket;
-        process.stdout.write(`${id}: ${summary.substr(0, 40)} `);
+        process.stdout.write(`${id}: ${chalk.dim.green(summary.substr(0, 40))} `);
         // console.log(id, summary);
         // return;
         // make custom fields look like real fields
@@ -437,7 +446,7 @@ async function doit() {
                         preDescriptionJunk = preDescriptionJunk + 'h6. Also see: ' + xref + '\n\n';
                         continue;
                     }
-
+                    xref = xref.replace(/[^0-9]*/g, '');
                     if(!xref) continue;
                     if(!/[0-9]+/.test(xref)) {
                         preDescriptionJunk = preDescriptionJunk + 'h6. Malformed Xref: ' + xref + '\n\n';
@@ -445,7 +454,7 @@ async function doit() {
                     }
                     // console.log('XREF', xref);
                     const targetLink = `${config.project.name}-${xref}`;
-                    if(!linkedIdSet.has(targetLink)) {
+                    if(!linkedIdSet.has(targetLink) && (targetLink !== issueKey)) {
                         // console.log('Need', targetLink);
                         const link = await jira.issueLink({
                             type: config.xrefLinkType,
@@ -459,7 +468,7 @@ async function doit() {
                         .catch((e) => {
                             // errTix[`${issueKey}::${targetLink}`] = e.toString();
                             preDescriptionJunk = preDescriptionJunk + 'h6. Orphan Xref: ' + xref + '\n\n';
-                            console.error(e.toString());
+                            console.error(`\n${chalk.red('Could not XREF ')} ${issueKey} // ${targetLink} : ${e.message}`);
                         });
                     }
                 }
@@ -580,14 +589,21 @@ async function doit() {
 
             function setIfNotSet(k,v) {
                 if(v == '' || !v) v = null; // prevent noise.
+                // console.dir({j: jiraIssue.fields[k], v});
                 if(v && (v.accountId || v.name)) {
                     // its a user.
                     if(!jiraIssue.fields[k] ||
                         jiraIssue.fields[k].accountId !== v.accountId) {
-                            // console.dir({j: jiraIssue.fields[k], v});
                             fields[k] = v;
                         } else {
                             // not a partial match.
+                        }
+                } else if(v && v.value) {
+                    if(!jiraIssue.fields[k] ||
+                        jiraIssue.fields[k].value !== v.value) {
+                            fields[k] = v;
+                        } else {
+                            // not a matched field
                         }
                 } else if(jiraIssue.fields[k] !== v) {
                     // console.dir({j: jiraIssue.fields[k], v});
@@ -657,8 +673,9 @@ async function doit() {
         // If there's any change, write it.
         if(Object.keys(fields).length > 0) {
             //console.dir({id, issueKey, jiraId, fields}, {color: true, depth: Infinity});
-            process.stdout.write(`\r${id}:   Change   ${summary.substr(0,40)}         \n`);
-            console.log('≈', Object.keys(fields).join(', '));
+            const changedSet = Object.keys(fields).map(f => fieldIdToName(f));
+            process.stdout.write(`\r${chalk.bold(id)}: ≈ ${chalk.green(summary.substr(0,10))} ≈ ${chalk.blue((await Promise.all(changedSet)).join(','))}                       \n`);
+            // console.log('≈', Object.keys(fields).join(', '));
             const ret = await jira.updateIssue(issueKey, {fields, notifyUsers: false})
             .catch((e) => {
                 errTix[issueKey] = e.errors || e.message || e.toString();
@@ -668,7 +685,7 @@ async function doit() {
             updTix[issueKey] =  ret;
             // console.dir(ret);
         } else {
-            process.stdout.write(`\r${id} No Change =======================                  \n`);
+            process.stdout.write(`\r${id} ${chalk.dim("No Change =======================")}                       \r`);
             // console.log(' ', 'No change:', id, issueKey, jiraId);
         }
 
