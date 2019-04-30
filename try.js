@@ -549,7 +549,7 @@ async function doit() {
             // TODO: watchers.
 
             if(config.mapFields.xpath) {
-                const value = ticket.xpath.replace(/[ ]+/g, '\n').trim();
+                const value = (ticket.xpath || '').replace(/[ ]+/g, '\n').trim();
                 if(value) {
                     setIfNotSet(await getFieldIdFromMap('xpath'), 
                         {value});
@@ -559,24 +559,37 @@ async function doit() {
                 }
             }
             if(config.mapFields.locale) {
-                const value = ticket.locale.replace(/[, ]+/g, '\n').trim();
-                setIfNotSet(await getFieldIdFromMap('locale'),
-                value);
-    }
+                const value = (ticket.locale || '').replace(/[, ]+/g, '\n').trim();
+                setIfNotSet(await getFieldIdFromMap('locale'), value);
+            }
             if(config.mapFields.phase) {
-                setIfNotSet(await getFieldIdFromMap('phase'), {value: ticket.phase});
+                if(ticket.phase) {
+                    setIfNotSet(await getFieldIdFromMap('phase'), {value: ticket.phase});
+                } else {
+                    setIfNotSet(await getFieldIdFromMap('phase'), ticket.phase);
+                }
             }
 
             // Reporter
-            fields.reporter = await getReporter(ticket.reporter);
+            setIfNotSet('reporter', await getReporter(ticket.reporter));
+            setIfNotSet('assignee', await getReporter(ticket.owner));
 
             // Reporter
             // Trac reporter
-            fields.assignee = await getReporter(ticket.owner);
 
             function setIfNotSet(k,v) {
                 if(v == '' || !v) v = null; // prevent noise.
-                if(jiraIssue.fields[k] !== v) {
+                if(v && (v.accountId || v.name)) {
+                    // its a user.
+                    if(!jiraIssue.fields[k] ||
+                        jiraIssue.fields[k].accountId !== v.accountId) {
+                            // console.dir({j: jiraIssue.fields[k], v});
+                            fields[k] = v;
+                        } else {
+                            // not a partial match.
+                        }
+                } else if(jiraIssue.fields[k] !== v) {
+                    // console.dir({j: jiraIssue.fields[k], v});
                     fields[k] = v;
                 }
             }
@@ -589,7 +602,7 @@ async function doit() {
                 setIfNotSet(await getFieldIdFromMap('owner'), ticket.owner);
             }
             if(config.mapFields.revw) {
-                console.log('review field', await getFieldIdFromMap('revw'), ticket.revw);
+                // console.log('review field', await getFieldIdFromMap('revw'), ticket.revw);
                 setIfNotSet(await getFieldIdFromMap('revw'), await getReporter(ticket.revw));
             }
             if(config.mapFields.time) {
