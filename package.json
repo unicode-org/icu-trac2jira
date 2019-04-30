@@ -12,6 +12,7 @@
   "license": "Unicode-DFS-2015",
   "private": true,
   "dependencies": {
+    "chalk": "^2.4.2",
     "is-file-promise": "^1.0.3",
     "jira-client": "^6.7.1",
     "mkdirp-then": "^1.2.0",
