@@ -15,11 +15,8 @@
         "revw": "Reviewer",
         "locale": "locale",
         "xpath": "xpath",
-        "phase": "phase"
-    },
-    "_mapFields": {
+        "phase": "phase",
         "time": "tracCreated",
-        "status": "tracStatus",
         "cc": "tracCc"
     },
     "_mapTypes": {
