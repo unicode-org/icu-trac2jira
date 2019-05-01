@@ -863,9 +863,12 @@ async function doit() {
                     // console.dir(attach);
                     // Do we have this attachment already?
                     const subpath = attach.filename
+                        .replace(/%/g, '%25')
                         .replace(/ /g,'%20')
                         .replace(/\[/g,'%5B')
                         .replace(/\$/g,'%24')
+                        .replace(/\?/g,'%3F')
+                        .replace(/=/g,'%3D')
                         .replace(/\]/g,'%5D'); // hmm, do you think just maybe there might be a pattern here?
                     let foundCount = 0;
                     for(const jattach of (jiraIssue.fields.attachment || [])) {
