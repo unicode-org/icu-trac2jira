@@ -60,7 +60,7 @@ const allTickets = dbPromise.then(async (db) => db.all(`select * from ticket ${t
  * This always returns something valid. can be an accountid
  * @param {String} tracReporter - trac id
  */
-async function getReporter(tracReporter) {
+function getReporter(tracReporter) {
     if(!tracReporter) return null;
     // Trac reporter
     let reporterEntry = config.reporterMap[tracReporter] || config.reporterMap.nobody;
@@ -391,6 +391,7 @@ async function doit() {
         scanno++;
         // const jiraId = (await o2n).getJiraId(id);
         const issueKey =  `${config.project.name}-${id}`;
+        const issueWatchers = jira.getIssueWatchers(issueKey).catch(e => null);
         const jiraIssue = await jira.findIssue(
             issueKey,
             null, '', //expand,
@@ -400,7 +401,7 @@ async function doit() {
         ).catch((e) => {
             console.error(e);
             process.exitCode=1;
-            console.error(`Could not load issue ${issueKey} — ${e}. `);
+            console.error(chalk.red(`Could not load issue ${issueKey} — ${e}. `));
             errTix[id] = `Could not load issue ${issueKey} — ${e}. `;
             return null;
         });
@@ -553,10 +554,34 @@ async function doit() {
             if(config.mapFields.weeks) {
                 setIfNotSet(await getFieldIdFromMap('weeks'), Number(ticket.weeks));
             }
+            const theCc = (ticket.cc||'').split(/[, ]+/).map(e => obfuscate(e)).sort();
             if(config.mapFields.cc) {
-                setIfNotSet(await getFieldIdFromMap('cc'), (ticket.cc||'').split(/[, ]+/).map(e => obfuscate(e)).sort().join(','));
+                setIfNotSet(await getFieldIdFromMap('cc'), theCc.join(','));
             }
-            // TODO: watchers.
+
+            if(theCc) {
+                // const theWatchers = await issueWatchers;
+                // console.dir(await issueWatchers);
+                for(const ccc of theCc) {
+                    if(ccc === ticket.reporter || ccc === ticket.owner) continue;
+                    const r = getReporter(ccc);
+                    if (r &&  r != config.reporterMap.nobody) {
+                        let found;
+                        for(const w of (await issueWatchers).watchers) {
+                            if(w.accountId === r.accountId || r.key === w.key || r.name === w.name) {
+                                found = w;
+                            }
+                        }
+                        if(!found) {
+                            // console.log(issueKey, r.key, r.accountId, ticket.reporter, ticket.owner);
+                            jira.addWatcher(issueKey, r.key)
+                            .then(addedWatcher => process.stdout.write(`${chalk.bold.blue('+'+ccc)}`))
+                            .catch(addedWatcher => console.error({addedWatcher}));
+                            // console.log('add watcher', r);
+                        }
+                    }
+                }
+            }
 
             if(config.mapFields.xpath) {
                 const value = (ticket.xpath || '').replace(/[ ]+/g, '\n').trim();
