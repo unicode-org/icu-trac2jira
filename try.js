@@ -561,8 +561,10 @@ async function doit() {
             if(config.mapFields.xpath) {
                 const value = (ticket.xpath || '').replace(/[ ]+/g, '\n').trim();
                 if(value) {
+                //    setIfNotSet(await getFieldIdFromMap('xpath'), 
+                //        {value});
                     setIfNotSet(await getFieldIdFromMap('xpath'), 
-                        {value});
+                        value);
                 } else {
                     setIfNotSet(await getFieldIdFromMap('xpath'), 
                         null);
@@ -672,17 +674,22 @@ async function doit() {
 
         // If there's any change, write it.
         if(Object.keys(fields).length > 0) {
-            //console.dir({id, issueKey, jiraId, fields}, {color: true, depth: Infinity});
+            if(false) console.dir({id, issueKey, jiraId, fields}, {color: true, depth: Infinity});
+
             const changedSet = Object.keys(fields).map(f => fieldIdToName(f));
             process.stdout.write(`\r${chalk.yellow(id)}: ≈ ${chalk.green(summary.substr(0,10))} ≈ ${chalk.blue((await Promise.all(changedSet)).join(','))}                       \r`);
-            // console.log('≈', Object.keys(fields).join(', '));
+
             const ret = await jira.updateIssue(issueKey, {fields, notifyUsers: false})
             .catch((e) => {
                 errTix[issueKey] = e.errors || e.message || e.toString();
                 // console.error(e);
                 return {error: e.errorss || e.message || e.toString()};
             });
-            process.stdout.write(`${chalk.bold(id)}!\n`);
+            if(errTix[issueKey]) {
+                process.stdout.write(`${chalk.red.bold(id)}!\n`);
+            } else {
+                process.stdout.write(`${chalk.green.bold(id)}!\n`);
+            }
             updTix[issueKey] =  ret;
             // console.dir(ret);
         } else {
@@ -877,7 +884,7 @@ function postscript() {
     if(errTix && Object.keys(errTix).length > 0) {
         process.exitCode = 1;
         console.dir(errTix, {depth: Infinity, color: true});
-        console.error(`Error in ${Object.keys(errTix).length} tickets.`);
+        console.error(`${chalk.red('Error')} in ${Object.keys(errTix).length} tickets.`);
     }
     if(updTix) {
         console.log(`Updated ${Object.keys(updTix).length}/${scanno} tickets.`);
