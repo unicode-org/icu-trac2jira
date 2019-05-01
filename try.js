@@ -580,9 +580,9 @@ async function doit() {
                         }
                         if(!found) {
                             // console.log(issueKey, r.key, r.accountId, ticket.reporter, ticket.owner);
-                            jira.addWatcher(issueKey, r.key)
+                            jira.addWatcher(issueKey, r.accountId)
                             .then(addedWatcher => process.stdout.write(`${chalk.bold.blue('+'+ccc)}`))
-                            .catch(addedWatcher => console.error({addedWatcher}));
+                            .catch(error => console.error(`${chalk.bold.red(error.message)} when adding ${r.key}/${ccc} to ${issueKey}`));
                             // console.log('add watcher', r);
                         }
                     }
@@ -868,15 +868,8 @@ async function doit() {
                 for(const attach of attaches) {
                     // console.dir(attach);
                     // Do we have this attachment already?
-                    const subpath = attach.filename
-                        .replace(/%/g, '%25')
-                        .replace(/ä/g, '%C3%A4')
-                        .replace(/ /g,'%20')
-                        .replace(/\[/g,'%5B')
-                        .replace(/\$/g,'%24')
-                        .replace(/\?/g,'%3F')
-                        .replace(/=/g,'%3D')
-                        .replace(/\]/g,'%5D'); // hmm, do you think just maybe there might be a pattern here?
+                    const subpath = path.join(path.dirname(attach.filename),
+                    encodeURIComponent(path.basename(attach.filename)));
                     let foundCount = 0;
                     for(const jattach of (jiraIssue.fields.attachment || [])) {
                         if(jattach.filename === attach.filename || jattach.filename === subpath) {
