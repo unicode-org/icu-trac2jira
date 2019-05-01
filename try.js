@@ -11,6 +11,7 @@ const fs = require('fs');
 const obfuscate = require('./lib/obfuscateEmail');
 const mkdirp = require('mkdirp-then');
 const chalk = require('chalk');
+const path = require('path');
 
 config.reporterMap = require('./reporterMap.json'); // ask sffc for this
 
@@ -533,7 +534,12 @@ async function doit() {
                 }
                 ticket.keywords = (ticket.keywords||'')+' jira-overlong-description';
             } else {
-                if(description !== newDescription) {
+                if((description||'').replace(/\r/g, '') !== (newDescription||'').replace(/\r/g, '')) { // fun with newlines
+                    if(false) {
+                        fs.writeFileSync('/tmp/a', description);
+                        fs.writeFileSync('/tmp/b', newDescription);
+                    }
+                    // console.log(description, newDescription);
                     fields.description = newDescription;
                 }
             }
@@ -864,6 +870,7 @@ async function doit() {
                     // Do we have this attachment already?
                     const subpath = attach.filename
                         .replace(/%/g, '%25')
+                        .replace(/ä/g, '%C3%A4')
                         .replace(/ /g,'%20')
                         .replace(/\[/g,'%5B')
                         .replace(/\$/g,'%24')
