@@ -869,7 +869,11 @@ async function doit() {
                     // console.dir(attach);
                     // Do we have this attachment already?
                     const subpath = path.join(path.dirname(attach.filename),
-                    encodeURIComponent(path.basename(attach.filename)));
+                    encodeURIComponent(path.basename(attach.filename))
+                        .replace(/\(/g,'%28')
+                        .replace(/\)/g,'%29')
+                        .replace(/'/g, '%27')
+                        .replace(/!/g, '%21'));
                     let foundCount = 0;
                     for(const jattach of (jiraIssue.fields.attachment || [])) {
                         if(jattach.filename === attach.filename || jattach.filename === subpath) {
