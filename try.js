@@ -544,7 +544,6 @@ async function doit() {
                 }
             }
 
-            // PUNT…  move status/resolution to custom fields
             {
                 let wantStatus = (ticket.status || '').trim();
                 let wantResolution = (ticket.resolution || '').trim();
@@ -728,40 +727,46 @@ async function doit() {
             // console.log(' ', 'No change:', id, issueKey, jiraId);
         }
 
-        // const wantStatus = (ticket.status || 'new');
-        // const wantStatusId = await nameToStatusId(wantStatus);
-        // if(jiraIssue.fields.status.id !== wantStatusId) {
-        //     // console.error(`in state ${jiraIssue.fields.status.name} want ${wantStatus} (${wantStatusId})`);
-        //     const transitions = await jira.listTransitions(issueKey);
-        //     // how to get there?
-        //     const goodTransitions = transitions.transitions.filter(t => t.to.id == wantStatusId);
-        //     // console.dir(goodTransitions, {depth: Infinity});
-        //     if(goodTransitions.length != 1) {
-        //         throw Error(`Too many or zero paths from ${issueKey} to ${wantStatus} : ${JSON.stringify(goodTransitions)}`);
-        //     }
-        //     body = {
-        //         //update: {
-        //             // comment: {
-        //                 // no comments from the peanut gallery
-        //             // }
-        //         // },
-        //         transition: { id: goodTransitions[0].id },
-        //         // fields: {
-        //         //     resolution: {
-        //         //         name: ticket.resolution
-        //         //     }
-        //         // }
-        //     };
+        const rawStatus = (ticket.status || 'new');
+        const wantStatus = config.mapStatus[rawStatus] || rawStatus;
+        const wantStatusId = await nameToStatusId(wantStatus);
+        if(false && !wantStatusId) {
+            throw Error(issueKey + ':' + chalk.red(`Unknown status ${wantStatus} (check config.json:mapStatus) `) + `(Have: ${Object.keys(await _nameToStatus)})`);
+        }
+        if(jiraIssue.fields.status.id !== wantStatusId) {
+            // console.error(`in state ${jiraIssue.fields.status.name} want ${wantStatus} (${wantStatusId})`);
+            const transitions = await jira.listTransitions(issueKey);
+            // how to get there?
+            const goodTransitions = transitions.transitions.filter(t => t.to.id == wantStatusId);
+            // console.dir(goodTransitions, {depth: Infinity});
+            if(goodTransitions.length != 1) {
+                // console.dir({transitions}, {depth: Infinity});
+                throw Error(issueKey + ':'+chalk.red(`Too many or zero paths to ${wantStatus}=${wantStatusId} : ${JSON.stringify(goodTransitions)} `) +
+                 ` Possibilities: ${transitions.transitions.map(t => chalk.blue(t.name)+'»'+chalk.bold.blue(t.to.name)).join('|')}) `);
+            }
+            body = {
+                //update: {
+                    // comment: {
+                        // no comments from the peanut gallery
+                    // }
+                // },
+                transition: { id: goodTransitions[0].id },
+                // fields: {
+                //     resolution: {
+                //         name: ticket.resolution
+                //     }
+                // }
+            };
 
-        //     const doTransition = await jira.transitionIssue(issueKey, body).catch((e) => {
-        //         errTix[`${issueKey}::${wantStatus}`] = e.toString();
-        //         console.error(e.toString);
-        //         return false;
-        //     });
-        //     if(!doTransition) {
-        //         console.dir(doTransition);
-        //     }
-        // }
+            const doTransition = await jira.transitionIssue(issueKey, body).catch((e) => {
+                errTix[`${issueKey}::${wantStatus}`] = e.toString();
+                console.error(e.toString);
+                return false;
+            });
+            if(!doTransition) {
+                console.dir(doTransition);
+            }
+        }
 
         // TODO: create pseudo attachments for long comments
         // * ticket|time|author|field|oldvalue|newvalue

@@ -33,7 +33,8 @@
         "ongoing": "Ongoing"
     },
     "mapStatus": {
-        
+        "closed": "Done",
+        "new": "New"
     },
     "security": {
         "sensitive": "10000",
