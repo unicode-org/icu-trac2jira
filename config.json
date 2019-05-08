@@ -34,7 +34,11 @@
     },
     "mapStatus": {
         "closed": "Done",
-        "new": "New"
+        "new": "New",
+        "accepted": "Accepted",
+        "design": "Design",
+        "reviewing": "Reviewing",
+        "reviewfeedback": "Review Feedback"
     },
     "security": {
         "sensitive": "10000",

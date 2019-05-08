@@ -737,20 +737,27 @@ async function doit() {
             // console.error(`in state ${jiraIssue.fields.status.name} want ${wantStatus} (${wantStatusId})`);
             const transitions = await jira.listTransitions(issueKey);
             // how to get there?
-            const goodTransitions = transitions.transitions.filter(t => t.to.id == wantStatusId);
+            let goodTransitions = transitions.transitions.filter(t => t.to.id == wantStatusId);
             // console.dir(goodTransitions, {depth: Infinity});
+            // if(goodTransitions.length > 1) {
+            //     goodTransitions = goodTransitions.filter(t => t.fields.resolution);
+            // }
+            if(goodTransitions.length > 1) {
+                goodTransitions = [ goodTransitions[0] ];
+            }
             if(goodTransitions.length != 1) {
-                // console.dir({transitions}, {depth: Infinity});
+                console.dir({transitions}, {depth: Infinity});
                 throw Error(issueKey + ':'+chalk.red(`Too many or zero paths to ${wantStatus}=${wantStatusId} : ${JSON.stringify(goodTransitions)} `) +
                  ` Possibilities: ${transitions.transitions.map(t => chalk.blue(t.name)+'»'+chalk.bold.blue(t.to.name)).join('|')}) `);
             }
+            const goodTransition = goodTransitions[0];
             body = {
                 //update: {
                     // comment: {
                         // no comments from the peanut gallery
                     // }
                 // },
-                transition: { id: goodTransitions[0].id },
+                transition: { id: goodTransition.id },
                 // fields: {
                 //     resolution: {
                 //         name: ticket.resolution
@@ -758,13 +765,22 @@ async function doit() {
                 // }
             };
 
+            // if(goodTransition.fields && goodTransition.fields.resolution ) {
+
+            // } else {
+            //     console.dir(goodTransition);
+            //     if(ticket.resolution) {
+            //         errTix[`${issueKey}::${ticket.resolution}`] = 'transition ignored resolution ' + ticket.resolution;
+            //     }
+            // }
+
             const doTransition = await jira.transitionIssue(issueKey, body).catch((e) => {
                 errTix[`${issueKey}::${wantStatus}`] = e.toString();
                 console.error(e.toString);
                 return false;
             });
-            if(!doTransition) {
-                console.dir(doTransition);
+            if(doTransition === undefined) {
+                process.stdout.write(issueKey+':'+chalk.bold.blue(`${goodTransition.name}»${wantStatus}\n`));
             }
         }
 
@@ -930,7 +946,13 @@ function postscript() {
 
 doit()
 .then((x) => {
-    console.dir(x);
+    console.log();
+    if(x) {
+        console.dir(x);
+    } else {
+        console.log(chalk.bold.green('OK!'));
+    }
+    
     postscript();
     
 }, (e) => {
