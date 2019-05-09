@@ -451,19 +451,18 @@ async function doit() {
         if(!jiraIssue) {
 
 	    continue; // could not load
-    }
-    if(!startTimeMs) {
-        startTimeMs = new Date().getTime();
-    } else {
-        if( (scanno % 128) === 0) {
+	} else if(!startTimeMs) {
+            startTimeMs = new Date().getTime();
+	} else if( (scanno % 128) === 0) {
             const elapsedTime = elapsedTimeMs();
             const avgTicket = (elapsedTime / scanno);
             const remain = ((count-scanno) * avgTicket);
             process.stdout.write(chalk.white.bold(`\n${scanno}/${count} ` + 
-            `avg @${humanizeDuration(avgTicket)} remain ${humanizeDuration(remain)} ` + 
-            `errs=${Number(Object.keys(errTix).length).toLocaleString()}\n`));
-        }
-    }
+						  `avg @${humanizeDuration(avgTicket)} remain ${humanizeDuration(remain)} ` + 
+						  `errs=${Number(Object.keys(errTix).length).toLocaleString()}\n`));
+	} else {
+	    process.stdout.write('…');
+	}
 
         // console.dir(ticket, {color: true, depth: Infinity});
         // console.dir(jiraIssue, {color: true, depth: Infinity});
