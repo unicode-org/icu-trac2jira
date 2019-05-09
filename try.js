@@ -392,7 +392,9 @@ async function doit() {
     for(ticket of all) {
         // console.log('Considering', ticket);
         const {id, summary, description} = ticket;
-        process.stdout.write(`${id}: ${chalk.dim.green(summary.substr(0, 40))} `);
+        const issueKey =  `${config.project.name}-${id}`;
+        process.stdout.write(`${issueKey}: ${chalk.dim.green(summary.substr(0, 40))} `);
+	
         // console.log(id, summary);
         // return;
         // make custom fields look like real fields
@@ -401,7 +403,6 @@ async function doit() {
         const hide = (/*private==='y' ||*/ sensitive == 1);
         scanno++;
         // const jiraId = (await o2n).getJiraId(id);
-        const issueKey =  `${config.project.name}-${id}`;
         const issueWatchers = jira.getIssueWatchers(issueKey)	
 	      .catch(e => null)
 		  .then(w => (w||{watchers:[]}).watchers);
@@ -444,6 +445,7 @@ async function doit() {
 
 	    continue; // could not load
 	}
+	process.stdout.write('…');
         // console.dir(ticket, {color: true, depth: Infinity});
         // console.dir(jiraIssue, {color: true, depth: Infinity});
         jiraId = jiraIssue.id;
@@ -742,23 +744,23 @@ async function doit() {
             if(false) console.dir({id, issueKey, jiraId, fields}, {color: true, depth: Infinity});
 
             const changedSet = Object.keys(fields).map(f => fieldIdToName(f));
-            process.stdout.write(`\r${chalk.yellow(id)}: ≈ ${chalk.green(summary.substr(0,10))} ≈ ${chalk.blue((await Promise.all(changedSet)).join(','))}                       \r`);
+            process.stdout.write(`\r${chalk.yellow(issueKey)}:${chalk.blue((await Promise.all(changedSet)).join(','))}\r`);
 
             const ret = await jira.updateIssue(issueKey, {fields, notifyUsers: false})
             .catch((e) => {
                 errTix[issueKey] = e.errors || e.message || e.toString();
                 // console.error(e);
-                return {error: e.errorss || e.message || e.toString()};
+                return {error: e.errors || e.message || e.toString()};
             });
             if(errTix[issueKey]) {
                 process.stdout.write(`${chalk.red.bold(id)}!\n`);
             } else {
-                process.stdout.write(`${chalk.green.bold(id)}!\n`);
+                process.stdout.write(`\n`); // \r${chalk.green.bold(issueKey)}!\r`);
             }
             updTix[issueKey] =  ret;
             // console.dir(ret);
         } else {
-            process.stdout.write(`\r${id} ${chalk.dim("No Change =======================")}                       \r`);
+            process.stdout.write(`\r${issueKey} ${chalk.dim("No Change =======================")}                       \r`);
             // console.log(' ', 'No change:', id, issueKey, jiraId);
         }
 
@@ -769,6 +771,8 @@ async function doit() {
             throw Error(issueKey + ':' + chalk.red(`Unknown status ${wantStatus} (check config.json:mapStatus) `) + `(Have: ${Object.keys(await _nameToStatus)})`);
         }
         if(jiraIssue.fields.status.id !== wantStatusId) {
+            process.stdout.write(chalk.dim(`\r${chalk.yellow(issueKey)} ${jiraIssue.fields.status.name}≠${wantStatus}?   \r`));
+	
             // console.error(`in state ${jiraIssue.fields.status.name} want ${wantStatus} (${wantStatusId})`);
             const transitions = await jira.listTransitions(issueKey);
             // how to get there?
@@ -809,13 +813,23 @@ async function doit() {
             //     }
             // }
 
-            const doTransition = await jira.transitionIssue(issueKey, body).catch((e) => {
-                errTix[`${issueKey}::${wantStatus}`] = e.toString();
-                console.error(e.toString);
+            const doTransition = await jira.transitionIssue(issueKey, body).catch(async (e) => {
+		if(e.statusCode === 401 || e.response.statusCode === 401) {
+		    // retry
+		    console.log(chalk.red.bold(`(Retry statuschange ${issueKey})`));
+		    return await jira.transitionIssue(issueKey, body).catch((e) => {
+			errTix[`${issueKey}::${wantStatus}`] = e.toString();
+			console.error(e.toString());
+			return false;
+		    });
+		} else {
+		    errTix[`${issueKey}::${wantStatus}`] = e.toString();
+                    console.error(e.toString());
+		}
                 return false;
             });
             if(doTransition === undefined) {
-                process.stdout.write(issueKey+':'+chalk.bold.blue(`${goodTransition.name}»${wantStatus}\n`));
+                process.stdout.write('\r'+issueKey+':'+chalk.bold.blue(`${goodTransition.name}»${wantStatus}       \n`));
             }
         }
 
@@ -827,8 +841,11 @@ async function doit() {
             console.log('-- skipping comment update for now on ', id)
         } else
         {
+            process.stdout.write(chalk.dim(`\r${issueKey} comments?   \r`));
             const comments = ((await allCommentsByTicket)[id])||[]; // at least []
+            process.stdout.write(chalk.dim(`\r${issueKey} comments…   \r`));
             const jiraComments = ((((jiraIssue||{}).fields.comment)||{}).comments) || []; // at least []
+            process.stdout.write(chalk.dim(`\r${issueKey} comments!   \r`));
             // console.log('LENGTHS', comments.length, jiraComments.length);
             // Too many comments?!
             if(comments.length< jiraComments.length) {
@@ -919,10 +936,12 @@ async function doit() {
                 }
             }
         }
+        process.stdout.write(chalk.dim(`\r${id} attachments?   \r`));
 
         // ATTACHMENTS
         {
             const attaches = (await attachmentsByTicket)[id];
+            process.stdout.write(chalk.dim(`\r${id} attachments…   \r`));
             if(attaches && attaches.length) {
                 // console.dir({attaches, jattach: jiraIssue.fields.attachment});
                 // For each attachment
