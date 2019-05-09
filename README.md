@@ -1,4 +1,9 @@
-### ICU's Trac to JIRA converter
+### ICU and CLDR’s Trac to JIRA converter
+
+![console output](trac2jira2.mov.gif)
+
+( note, the `cldr` branch is the last known good branch. )
+
 
 to use:
 - node version 8 or later required
