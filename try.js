@@ -32,6 +32,16 @@ async function getUserByAccountId(accountId) {
         })));
 }
 
+function myFindIssue(issueKey) {
+    return jira.findIssue(
+            issueKey,
+            null, '', //expand,
+            null, //fields,
+            'description', //properties,
+            //fieldsByKeys
+    );
+}
+
 async function deleteAttachment(attachmentId) {
     // DELETE /rest/api/2/attachment/{id}
     return jira.doRequest(jira.makeRequestHeader(jira.makeUri({
@@ -392,21 +402,48 @@ async function doit() {
         scanno++;
         // const jiraId = (await o2n).getJiraId(id);
         const issueKey =  `${config.project.name}-${id}`;
-        const issueWatchers = jira.getIssueWatchers(issueKey).catch(e => null);
-        const jiraIssue = await jira.findIssue(
-            issueKey,
-            null, '', //expand,
-            null, //fields,
-            'description', //properties,
-            //fieldsByKeys
-        ).catch((e) => {
-            console.error(e);
+        const issueWatchers = jira.getIssueWatchers(issueKey)	
+	      .catch(e => null)
+		  .then(w => (w||{watchers:[]}).watchers);
+
+        const jiraIssue = await myFindIssue(issueKey)
+	.catch((e) => {
+	    if(e.statusCode === 401 || e.response.statusCode === 401) {
+		// retry
+		console.log(chalk.red.bold(`Retry ${issueKey}`));
+		return myFindIssue(issueKey);
+	    } else {
+		console.error(e.message.substr(0,80));
+		process.exitCode=1;
+		console.error(chalk.red(`Could not load issue ${issueKey} — ${e.message.substr(0,80)}. `));
+		errTix[id] = `Could not load issue ${issueKey} — ${e}. `;
+		return null;
+	    }
+	})
+	.catch((e) => {
+	    if(e.statusCode === 401 || e.response.statusCode === 401) {
+		// retry
+		console.log(chalk.red.bold(`Retry2 ${issueKey}`));
+		return myFindIssue(issueKey);
+	    } else {
+		console.error(e.message.substr(0,80));
+		process.exitCode=1;
+		console.error(chalk.red(`Could 2not load issue ${issueKey} — ${e.message.substr(0,80)}. `));
+		errTix[id] = `Could 2not load issue ${issueKey} — ${e}. `;
+		return null;
+	    }
+	})
+	.catch((e) => {
+            console.error(e.message.substr(0,80));
             process.exitCode=1;
-            console.error(chalk.red(`Could not load issue ${issueKey} — ${e}. `));
-            errTix[id] = `Could not load issue ${issueKey} — ${e}. `;
+            console.error(chalk.red(`Could not load issue after retry ${issueKey} — ${e.message.substr(0,80)}. `));
+            errTix[id] = `Could not load issue after retry ${issueKey} — ${e}. `;
             return null;
         });
-        if(!jiraIssue) continue; // could not load
+        if(!jiraIssue) {
+
+	    continue; // could not load
+	}
         // console.dir(ticket, {color: true, depth: Infinity});
         // console.dir(jiraIssue, {color: true, depth: Infinity});
         jiraId = jiraIssue.id;
@@ -565,14 +602,12 @@ async function doit() {
             }
 
             if(theCc) {
-                // const theWatchers = await issueWatchers;
-                // console.dir(await issueWatchers);
                 for(const ccc of theCc) {
                     if(ccc === ticket.reporter || ccc === ticket.owner) continue;
                     const r = getReporter(ccc);
                     if (r &&  r != config.reporterMap.nobody) {
                         let found;
-                        for(const w of (await issueWatchers || []).watchers) {
+                        for(const w of await issueWatchers) {
                             if(w.accountId === r.accountId || r.key === w.key || r.name === w.name) {
                                 found = w;
                             }
@@ -864,7 +899,12 @@ async function doit() {
                             // Can't not set the content.
                             fields.body = body;
                             const errKey = `${issueKey}.${n}`;
-                            console.dir(fields);
+                            if(false) {
+				console.dir(fields);
+			    } else {
+				console.log(chalk.dim.blue(`C${errKey}`));
+			    }
+			    
                             delete fields.body;  // body is in a separate param
                             const newComment = await jira.updateComment(issueKey, jiraComments[n-1].id, body, fields)
                             .catch((e) => {
