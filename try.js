@@ -12,6 +12,7 @@ const obfuscate = require('./lib/obfuscateEmail');
 const mkdirp = require('mkdirp-then');
 const chalk = require('chalk');
 const path = require('path');
+const humanizeDuration = require('humanize-duration')
 
 config.reporterMap = require('./reporterMap.json'); // ask sffc for this
 
@@ -24,6 +25,12 @@ const jira = new JiraApi(require('./local-auth.json').jira);
 1-liner:
 const jira = new (require('jira-client')) (require('./config.json').jira);
 */
+
+let startTimeMs;
+function elapsedTimeMs() {
+    return new Date().getTime() - startTimeMs;
+}
+
 
 // Fetch users that we don't have the name for
 async function getUserByAccountId(accountId) {
@@ -444,8 +451,20 @@ async function doit() {
         if(!jiraIssue) {
 
 	    continue; // could not load
-	}
-	process.stdout.write('…');
+    }
+    if(!startTimeMs) {
+        startTimeMs = new Date().getTime();
+    } else {
+        if( (scanno % 128) === 0) {
+            const elapsedTime = elapsedTimeMs();
+            const avgTicket = (elapsedTime / scanno);
+            const remain = ((count-scanno) * avgTicket);
+            process.stdout.write(chalk.white.bold(`\n${scanno}/${count} ` + 
+            `avg @${humanizeDuration(avgTicket)} remain ${humanizeDuration(remain)} ` + 
+            `errs=${Number(Object.keys(errTix).length).toLocaleString()}\n`));
+        }
+    }
+
         // console.dir(ticket, {color: true, depth: Infinity});
         // console.dir(jiraIssue, {color: true, depth: Infinity});
         jiraId = jiraIssue.id;
