@@ -572,7 +572,7 @@ async function doit() {
                     const r = getReporter(ccc);
                     if (r &&  r != config.reporterMap.nobody) {
                         let found;
-                        for(const w of (await issueWatchers).watchers) {
+                        for(const w of (await issueWatchers || []).watchers) {
                             if(w.accountId === r.accountId || r.key === w.key || r.name === w.name) {
                                 found = w;
                             }
