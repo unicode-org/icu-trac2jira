@@ -2,8 +2,7 @@
 
 ![console output](trac2jira2.mov.gif)
 
-( note, the `cldr` branch is the last known good branch. )
-
+- note tags `icu-conversion` and `cldr-conversion` respectively for the two projects.
 
 to use:
 - node version 8 required. (Seems to be requiring exactly 8 at the moment.)
