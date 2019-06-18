@@ -1,24 +1,25 @@
 {
     "db": {
-        "path": "../TRACDB/trac-2.db",
-        "attachmentPath": "../TRACDB/attachments-ticket/ticket/"
+        "path": "/Users/srl/src/uni-backups/backups/backup-cldr-trac/db/trac.db",
+        "attachmentPath": "/Users/srl/src/uni-backups/backups/backup-cldr-trac/attachments/ticket/"
     },
     "project": {
-        "name": "ICU"
+        "name": "TEST"
     },
     "mapFields": {
-        "id": "tracid",
+        "id": "tracId",
         "owner": "tracOwner",
-        "reporter": "tracReporter",
-        "time": "tracCreated",
-        "revw": "tracReviewer",
         "status": "tracStatus",
         "resolution": "tracResolution",
-        "weeks": "tracWeeks",
-        "project": "tracProject",
+        "reporter": "tracReporter",
+        "revw": "Reviewer",
+        "locale": "locale",
+        "xpath": "xpath",
+        "phase": "phase",
+        "time": "tracCreated",
         "cc": "tracCc"
     },
-    "mapTypes": {
+    "_mapTypes": {
         "defect": "Bug",
         "enhancement": "New Feature",
         "task": "Task",
@@ -32,7 +33,12 @@
         "ongoing": "Ongoing"
     },
     "mapStatus": {
-        
+        "closed": "Done",
+        "new": "New",
+        "accepted": "Accepted",
+        "design": "Design",
+        "reviewing": "Reviewing",
+        "reviewfeedback": "Review Feedback"
     },
     "security": {
         "sensitive": "10000",

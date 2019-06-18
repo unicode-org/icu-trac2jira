@@ -10,8 +10,12 @@ const config = require('./config.json');
 const fs = require('fs');
 const obfuscate = require('./lib/obfuscateEmail');
 const mkdirp = require('mkdirp-then');
+const chalk = require('chalk');
+const path = require('path');
+const humanizeDuration = require('humanize-duration')
 
 config.reporterMap = require('./reporterMap.json'); // ask sffc for this
+
 
 const InterMap = require('./lib/intermap');
 
@@ -21,6 +25,40 @@ const jira = new JiraApi(require('./local-auth.json').jira);
 1-liner:
 const jira = new (require('jira-client')) (require('./config.json').jira);
 */
+
+let startTimeMs;
+function elapsedTimeMs() {
+    return new Date().getTime() - startTimeMs;
+}
+
+
+// Fetch users that we don't have the name for
+async function getUserByAccountId(accountId) {
+    return jira.doRequest(jira.makeRequestHeader(jira.makeUri({
+          pathname: "/user?accountId=".concat(accountId)
+        })));
+}
+
+function myFindIssue(issueKey) {
+    return jira.findIssue(
+            issueKey,
+            null, '', //expand,
+            null, //fields,
+            'description', //properties,
+            //fieldsByKeys
+    );
+}
+
+async function deleteAttachment(attachmentId) {
+    // DELETE /rest/api/2/attachment/{id}
+    return jira.doRequest(jira.makeRequestHeader(jira.makeUri({
+        pathname: "/attachment/".concat(attachmentId),
+      }),
+      {
+        followAllRedirects: true,
+        method: 'DELETE'
+      }));
+}
 
 // Promise for main Trac DB
 const dbPromise = sqlite.open(config.db.path, { cached: true });
@@ -36,6 +74,41 @@ console.log('ticket filter:', ticketwhere);
 // @@@ NOTE: this controls which tickets are imported. 
 const allTickets = dbPromise.then(async (db) => db.all(`select * from ticket ${ticketwhere}`));
 
+/**
+ * This always returns something valid. can be an accountid
+ * @param {String} tracReporter - trac id
+ */
+function getReporter(tracReporter) {
+    if(!tracReporter) return null;
+    // Trac reporter
+    let reporterEntry = config.reporterMap[tracReporter] || config.reporterMap.nobody;
+    if(!reporterEntry.name && !reporterEntry.accountId) {
+        throw Error('No name or key for ' + tracReporter + ' - ' + JSON.stringify(reporterEntry));
+    }
+    return reporterEntry;
+}
+
+/**
+ * @param {String} tracReporter - trac id
+ */
+async function getReporterWithName(tracReporter) {
+    if(!tracReporter) return null;
+    let reporterEntry = config.reporterMap[tracReporter];
+    if(!reporterEntry) return null;
+
+    if(!reporterEntry.name && reporterEntry.accountId) {
+        // Go fish.
+        const reporterValue = await getUserByAccountId(reporterEntry.accountId);
+        // console.dir(reporterValue);
+        // throw Error('Foo');
+        reporterEntry.name = reporterValue.name;
+        reporterEntry.key = reporterEntry.key;
+        reporterEntry.displayName = reporterEntry.displayName;
+
+        // console.log('Resolved', reporterValue.name, 'from', reporterEntry.accountId);
+    }
+    return reporterEntry;
+}
 
 /*
  * ticket|time|author|field|oldvalue|newvalue
@@ -87,10 +160,19 @@ const nameToIssueType = issueTypes.then(async (issueTypes) => issueTypes.reduce(
 
 const allFields = jira.listFields();
 
+
 const nameToFieldId = allFields.then(async (allFields) => allFields.reduce((p,v) => {
     p[v.name] = v;
     return p;
 }, {}));
+
+async function fieldIdToName(f) {
+    const n2f = await nameToFieldId;
+    for([k,v] of Object.entries(n2f)) {
+        if(v && (v.id === f)) return k;
+    }
+    return f;
+}
 
 const _nameToComponent = components.then(async (allFields) => allFields.reduce((p,v) => {
     p[v.name] = v;
@@ -188,9 +270,18 @@ const InterMapTxt = getWiki('InterMapTxt')
 .then((m) => m.text)
 .then((l) => new InterMap(l));
 
-async function forTracType(type) {
+/* async */ function forTracType(type) {
+    if(!config.mapTypes) {
+        // We don't care. Not using types.
+        return forJiraIssueType(type, 'Bug');
+    }
+
     const jiraType = config.mapTypes[type];
     if(!jiraType) throw Error(`Unknown trac ticket type ${type} (check mapTypes)`);
+    return forJiraIssueType(type, jiraType);
+}
+
+async function forJiraIssueType(type, jiraType) {   
     const map = await nameToIssueType;
     const jiraIssueType = map[jiraType];
     if(!jiraIssueType) throw Error(`Unknown Jira type ${jiraType} (for ${type} - check mapTypes and JIRA`);
@@ -199,24 +290,16 @@ async function forTracType(type) {
     // (await nameToIssueType)[config.mapTypes[ticket.type]]}    
 }
 
-function getReporter(r) {
-    if(!r) return undefined;
-    const name = config.reporterMap[r];
-    if(name) {
-        return {name};
-    } else {
-        return undefined;
-    }
-}
-
 async function getFieldIdFromMap(mapId) {
     const customName = config.mapFields[mapId];
     if (!customName) throw Error(`no customName for ${mapId}`);
     const subMap = await nameToFieldId;
-    const {key} = subMap[customName];
-    if (!key) throw Error(`No key for ${customName} (${mapId})`);
+    if(!subMap[customName]) throw Error(`Need to create custom field ${customName}`);
+    const {key, id} = subMap[customName];
+    // console.log(subMap[customName].id)
+    if (!key && !id ) throw Error(`No key or id for ${customName} (${mapId}) - have ${Object.keys(subMap[customName])}`);
     // console.log(mapId,customName,customId);
-    return key;
+    return key || id;
 }
 
 const updTix = {};
@@ -265,7 +348,7 @@ async function doit() {
                 project: config.project.name,
                 projectId
             };
-            console.log('need to add priority',name);
+            console.log('need to add priority MANUALLY',name);
             // hack: add it back to the cache
             // Ooops - can't do this from the API
             // await jira.addNewPriority(body);
@@ -287,7 +370,8 @@ async function doit() {
             const body = {
                 name,
                 description: (await InterMapTxt).render({text: milestoneMeta.description
-                    .replace(/(#|ticket:|icubug:)([0-9]+)/ig, `[${config.project.name}-$2]`) // more aggressive ticket linking
+                    .replace(/(#|ticket:|cldrbug:)([0-9]+)/ig, `[${config.project.name}-$2]`) // more aggressive ticket linking
+                    // .replace(/(#|ticket:|icubug:)([0-9]+)/ig, `[${config.project.name}-$2]`) // more aggressive ticket linking
                 , ticket: {}, config, project, rev2ticket: await rev2ticket}),
                 project: config.project.name,
                 projectId,
@@ -315,7 +399,10 @@ async function doit() {
     for(ticket of all) {
         // console.log('Considering', ticket);
         const {id, summary, description} = ticket;
-        console.log(id, summary);
+        const issueKey =  `${config.project.name}-${id}`;
+        process.stdout.write(`${issueKey}: ${chalk.dim.green(summary.substr(0, 40))} `);
+	
+        // console.log(id, summary);
         // return;
         // make custom fields look like real fields
         Object.assign(ticket, await custom(id));
@@ -323,21 +410,60 @@ async function doit() {
         const hide = (/*private==='y' ||*/ sensitive == 1);
         scanno++;
         // const jiraId = (await o2n).getJiraId(id);
-        const issueKey =  `${config.project.name}-${id}`;
-        const jiraIssue = await jira.findIssue(
-            issueKey,
-            null, '', //expand,
-            null, //fields,
-            'description', //properties,
-            //fieldsByKeys
-        ).catch((e) => {
-            console.error(e);
+        const issueWatchers = jira.getIssueWatchers(issueKey)	
+	      .catch(e => null)
+		  .then(w => (w||{watchers:[]}).watchers);
+
+        const jiraIssue = await myFindIssue(issueKey)
+	.catch((e) => {
+	    if(e.statusCode === 401 || e.response.statusCode === 401) {
+		// retry
+		console.log(chalk.red.bold(`Retry ${issueKey}`));
+		return myFindIssue(issueKey);
+	    } else {
+		console.error(e.message.substr(0,80));
+		process.exitCode=1;
+		console.error(chalk.red(`Could not load issue ${issueKey} — ${e.message.substr(0,80)}. `));
+		errTix[id] = `Could not load issue ${issueKey} — ${e}. `;
+		return null;
+	    }
+	})
+	.catch((e) => {
+	    if(e.statusCode === 401 || e.response.statusCode === 401) {
+		// retry
+		console.log(chalk.red.bold(`Retry2 ${issueKey}`));
+		return myFindIssue(issueKey);
+	    } else {
+		console.error(e.message.substr(0,80));
+		process.exitCode=1;
+		console.error(chalk.red(`Could 2not load issue ${issueKey} — ${e.message.substr(0,80)}. `));
+		errTix[id] = `Could 2not load issue ${issueKey} — ${e}. `;
+		return null;
+	    }
+	})
+	.catch((e) => {
+            console.error(e.message.substr(0,80));
             process.exitCode=1;
-            console.error(`Could not load issue ${issueKey} — ${e}. `);
-            errTix[id] = `Could not load issue ${issueKey} — ${e}. `;
+            console.error(chalk.red(`Could not load issue after retry ${issueKey} — ${e.message.substr(0,80)}. `));
+            errTix[id] = `Could not load issue after retry ${issueKey} — ${e}. `;
             return null;
         });
-        if(!jiraIssue) continue; // could not load
+        if(!jiraIssue) {
+
+	    continue; // could not load
+	} else if(!startTimeMs) {
+            startTimeMs = new Date().getTime();
+	} else if( (scanno % 128) === 0) {
+            const elapsedTime = elapsedTimeMs();
+            const avgTicket = (elapsedTime / scanno);
+            const remain = ((count-scanno) * avgTicket);
+            process.stdout.write(chalk.white.bold(`\n${scanno}/${count} ` + 
+						  `avg @${humanizeDuration(avgTicket)} remain ${humanizeDuration(remain)} ` + 
+						  `errs=${Number(Object.keys(errTix).length).toLocaleString()}\n`));
+	} else {
+	    process.stdout.write('…');
+	}
+
         // console.dir(ticket, {color: true, depth: Infinity});
         // console.dir(jiraIssue, {color: true, depth: Infinity});
         jiraId = jiraIssue.id;
@@ -379,7 +505,7 @@ async function doit() {
                         preDescriptionJunk = preDescriptionJunk + 'h6. Also see: ' + xref + '\n\n';
                         continue;
                     }
-
+                    xref = xref.replace(/[^0-9]*/g, '');
                     if(!xref) continue;
                     if(!/[0-9]+/.test(xref)) {
                         preDescriptionJunk = preDescriptionJunk + 'h6. Malformed Xref: ' + xref + '\n\n';
@@ -387,7 +513,7 @@ async function doit() {
                     }
                     // console.log('XREF', xref);
                     const targetLink = `${config.project.name}-${xref}`;
-                    if(!linkedIdSet.has(targetLink)) {
+                    if(!linkedIdSet.has(targetLink) && (targetLink !== issueKey)) {
                         // console.log('Need', targetLink);
                         const link = await jira.issueLink({
                             type: config.xrefLinkType,
@@ -401,13 +527,13 @@ async function doit() {
                         .catch((e) => {
                             // errTix[`${issueKey}::${targetLink}`] = e.toString();
                             preDescriptionJunk = preDescriptionJunk + 'h6. Orphan Xref: ' + xref + '\n\n';
-                            console.error(e.toString());
+                            console.error(`\n${chalk.red('Could not XREF ')} ${issueKey} // ${targetLink} : ${e.message}`);
                         });
                     }
                 }
             } else {
                 if(issuelinks && issuelinks.length) {
-                    console.log('Huh, ', `xref unset but ${issuelinks.length} links in JIRA (we may not care?)`);
+                    // console.log('Huh, ', `xref unset but ${issuelinks.length} links in JIRA- Probably incoming xrefs.`);
                 }
             }
 
@@ -465,12 +591,16 @@ async function doit() {
                 }
                 ticket.keywords = (ticket.keywords||'')+' jira-overlong-description';
             } else {
-                if(description !== newDescription) {
+                if((description||'').replace(/\r/g, '') !== (newDescription||'').replace(/\r/g, '')) { // fun with newlines
+                    if(false) {
+                        fs.writeFileSync('/tmp/a', description);
+                        fs.writeFileSync('/tmp/b', newDescription);
+                    }
+                    // console.log(description, newDescription);
                     fields.description = newDescription;
                 }
             }
 
-            // PUNT…  move status/resolution to custom fields
             {
                 let wantStatus = (ticket.status || '').trim();
                 let wantResolution = (ticket.resolution || '').trim();
@@ -480,40 +610,106 @@ async function doit() {
                 // ticket.keywords = (ticket.keywords||'')+` status-${wantStatus} resolution-${wantResolution}`;
 
             }
+            if(config.mapFields.project) {
+                setIfNotSet(await getFieldIdFromMap('project'), ticket.project);
+            }
+            if(config.mapFields.weeks) {
+                setIfNotSet(await getFieldIdFromMap('weeks'), Number(ticket.weeks));
+            }
+            const theCc = (ticket.cc||'').split(/[, ]+/).map(e => obfuscate(e)).sort();
+            if(config.mapFields.cc) {
+                setIfNotSet(await getFieldIdFromMap('cc'), theCc.join(','));
+            }
 
-            setIfNotSet(await getFieldIdFromMap('project'), ticket.project);
-            setIfNotSet(await getFieldIdFromMap('weeks'), Number(ticket.weeks));
-            setIfNotSet(await getFieldIdFromMap('cc'), (ticket.cc||'').split(/[, ]+/).map(e => obfuscate(e)).sort().join(','));
+            if(theCc) {
+                for(const ccc of theCc) {
+                    if(ccc === ticket.reporter || ccc === ticket.owner) continue;
+                    const r = getReporter(ccc);
+                    if (r &&  r != config.reporterMap.nobody) {
+                        let found;
+                        for(const w of await issueWatchers) {
+                            if(w.accountId === r.accountId || r.key === w.key || r.name === w.name) {
+                                found = w;
+                            }
+                        }
+                        if(!found) {
+                            // console.log(issueKey, r.key, r.accountId, ticket.reporter, ticket.owner);
+                            jira.addWatcher(issueKey, r.accountId)
+                            .then(addedWatcher => process.stdout.write(`${chalk.bold.blue('+'+ccc)}`))
+                            .catch(error => console.error(`${chalk.bold.red(error.message)} when adding ${r.key}/${ccc} to ${issueKey}`));
+                            // console.log('add watcher', r);
+                        }
+                    }
+                }
+            }
 
-
-            // Reporter
-            // Trac reporter
-            const reporterKey = (config.reporterMap[ticket.reporter] || config.reporterMap.nobody || {}).name;
-            if(reporterKey && reporterKey != (reporter||{}).name) {
-                // JIRA reporter
-                fields.reporter = { name: reporterKey };
+            if(config.mapFields.xpath) {
+                const value = (ticket.xpath || '').replace(/[ ]+/g, '\n').trim();
+                if(value) {
+                //    setIfNotSet(await getFieldIdFromMap('xpath'), 
+                //        {value});
+                    setIfNotSet(await getFieldIdFromMap('xpath'), 
+                        value);
+                } else {
+                    setIfNotSet(await getFieldIdFromMap('xpath'), 
+                        null);
+                }
+            }
+            if(config.mapFields.locale) {
+                const value = (ticket.locale || '').replace(/[, ]+/g, '\n').trim();
+                setIfNotSet(await getFieldIdFromMap('locale'), value);
+            }
+            if(config.mapFields.phase) {
+                if(ticket.phase) {
+                    setIfNotSet(await getFieldIdFromMap('phase'), {value: ticket.phase});
+                } else {
+                    setIfNotSet(await getFieldIdFromMap('phase'), ticket.phase);
+                }
             }
 
             // Reporter
+            setIfNotSet('reporter', await getReporter(ticket.reporter));
+            setIfNotSet('assignee', await getReporter(ticket.owner));
+
+            // Reporter
             // Trac reporter
-            const ownerKey = (config.reporterMap[ticket.owner] || config.reporterMap.nobody || {}).name;
-            if(ownerKey && ownerKey != (assignee||{}).name) {
-                // JIRA reporter
-                fields.assignee = { name: ownerKey };
-            }
 
             function setIfNotSet(k,v) {
                 if(v == '' || !v) v = null; // prevent noise.
-                if(jiraIssue.fields[k] !== v) {
+                // console.dir({j: jiraIssue.fields[k], v});
+                if(v && (v.accountId || v.name)) {
+                    // its a user.
+                    if(!jiraIssue.fields[k] ||
+                        jiraIssue.fields[k].accountId !== v.accountId) {
+                            fields[k] = v;
+                        } else {
+                            // not a partial match.
+                        }
+                } else if(v && v.value) {
+                    if(!jiraIssue.fields[k] ||
+                        jiraIssue.fields[k].value !== v.value) {
+                            fields[k] = v;
+                        } else {
+                            // not a matched field
+                        }
+                } else if(jiraIssue.fields[k] !== v) {
+                    // console.dir({j: jiraIssue.fields[k], v});
                     fields[k] = v;
                 }
             }
 
             // setIfNotSet(await getFieldIdFromMap('id'), id.toString());
-            setIfNotSet(await getFieldIdFromMap('reporter'), obfuscate(ticket.reporter));
-            setIfNotSet(await getFieldIdFromMap('owner'), ticket.owner);
-            setIfNotSet(await getFieldIdFromMap('revw'), ticket.revw);
-            {
+            if(config.mapFields.reporter) {
+                setIfNotSet(await getFieldIdFromMap('reporter'), obfuscate(ticket.reporter));
+            }
+            if(config.mapFields.owner) {
+                setIfNotSet(await getFieldIdFromMap('owner'), ticket.owner);
+            }
+            if(config.mapFields.revw) {
+                // console.log('review field', await getFieldIdFromMap('revw'), ticket.revw);
+                setIfNotSet(await getFieldIdFromMap('revw'), await getReporter(ticket.revw));
+            }
+            if(config.mapFields.time) {
                 const timeField = await getFieldIdFromMap('time');
                 const jiraTime = new Date(jiraIssue.fields[timeField] || 0);
                 const tracTime = new Date(ticket.time/1000);
@@ -563,61 +759,111 @@ async function doit() {
 
         // If there's any change, write it.
         if(Object.keys(fields).length > 0) {
-            console.dir({id, issueKey, jiraId, fields}, {color: true, depth: Infinity});
+            if(false) console.dir({id, issueKey, jiraId, fields}, {color: true, depth: Infinity});
+
+            const changedSet = Object.keys(fields).map(f => fieldIdToName(f));
+            process.stdout.write(`\r${chalk.yellow(issueKey)}:${chalk.blue((await Promise.all(changedSet)).join(','))}\r`);
+
             const ret = await jira.updateIssue(issueKey, {fields, notifyUsers: false})
             .catch((e) => {
                 errTix[issueKey] = e.errors || e.message || e.toString();
                 // console.error(e);
-                return {error: e.errorss || e.message || e.toString()};
+                return {error: e.errors || e.message || e.toString()};
             });
+            if(errTix[issueKey]) {
+                process.stdout.write(`${chalk.red.bold(id)}!\n`);
+            } else {
+                process.stdout.write(`\n`); // \r${chalk.green.bold(issueKey)}!\r`);
+            }
             updTix[issueKey] =  ret;
             // console.dir(ret);
         } else {
-            console.log('No change:', id, issueKey, jiraId);
+            process.stdout.write(`\r${issueKey} ${chalk.dim("No Change =======================")}                       \r`);
+            // console.log(' ', 'No change:', id, issueKey, jiraId);
         }
 
-        // const wantStatus = (ticket.status || 'new');
-        // const wantStatusId = await nameToStatusId(wantStatus);
-        // if(jiraIssue.fields.status.id !== wantStatusId) {
-        //     // console.error(`in state ${jiraIssue.fields.status.name} want ${wantStatus} (${wantStatusId})`);
-        //     const transitions = await jira.listTransitions(issueKey);
-        //     // how to get there?
-        //     const goodTransitions = transitions.transitions.filter(t => t.to.id == wantStatusId);
-        //     // console.dir(goodTransitions, {depth: Infinity});
-        //     if(goodTransitions.length != 1) {
-        //         throw Error(`Too many or zero paths from ${issueKey} to ${wantStatus} : ${JSON.stringify(goodTransitions)}`);
-        //     }
-        //     body = {
-        //         //update: {
-        //             // comment: {
-        //                 // no comments from the peanut gallery
-        //             // }
-        //         // },
-        //         transition: { id: goodTransitions[0].id },
-        //         // fields: {
-        //         //     resolution: {
-        //         //         name: ticket.resolution
-        //         //     }
-        //         // }
-        //     };
+        const rawStatus = (ticket.status || 'new');
+        const wantStatus = config.mapStatus[rawStatus] || rawStatus;
+        const wantStatusId = await nameToStatusId(wantStatus);
+        if(false && !wantStatusId) {
+            throw Error(issueKey + ':' + chalk.red(`Unknown status ${wantStatus} (check config.json:mapStatus) `) + `(Have: ${Object.keys(await _nameToStatus)})`);
+        }
+        if(jiraIssue.fields.status.id !== wantStatusId) {
+            process.stdout.write(chalk.dim(`\r${chalk.yellow(issueKey)} ${jiraIssue.fields.status.name}≠${wantStatus}?   \r`));
+	
+            // console.error(`in state ${jiraIssue.fields.status.name} want ${wantStatus} (${wantStatusId})`);
+            const transitions = await jira.listTransitions(issueKey);
+            // how to get there?
+            let goodTransitions = transitions.transitions.filter(t => t.to.id == wantStatusId);
+            // console.dir(goodTransitions, {depth: Infinity});
+            // if(goodTransitions.length > 1) {
+            //     goodTransitions = goodTransitions.filter(t => t.fields.resolution);
+            // }
+            if(goodTransitions.length > 1) {
+                goodTransitions = [ goodTransitions[0] ];
+            }
+            if(goodTransitions.length != 1) {
+                console.dir({transitions}, {depth: Infinity});
+                throw Error(issueKey + ':'+chalk.red(`Too many or zero paths to ${wantStatus}=${wantStatusId} : ${JSON.stringify(goodTransitions)} `) +
+                 ` Possibilities: ${transitions.transitions.map(t => chalk.blue(t.name)+'»'+chalk.bold.blue(t.to.name)).join('|')}) `);
+            }
+            const goodTransition = goodTransitions[0];
+            body = {
+                //update: {
+                    // comment: {
+                        // no comments from the peanut gallery
+                    // }
+                // },
+                transition: { id: goodTransition.id },
+                // fields: {
+                //     resolution: {
+                //         name: ticket.resolution
+                //     }
+                // }
+            };
 
-        //     const doTransition = await jira.transitionIssue(issueKey, body).catch((e) => {
-        //         errTix[`${issueKey}::${wantStatus}`] = e.toString();
-        //         console.error(e.toString);
-        //         return false;
-        //     });
-        //     if(!doTransition) {
-        //         console.dir(doTransition);
-        //     }
-        // }
+            // if(goodTransition.fields && goodTransition.fields.resolution ) {
 
-        // TODO: create pseudo attachments for long descriptions or comments
+            // } else {
+            //     console.dir(goodTransition);
+            //     if(ticket.resolution) {
+            //         errTix[`${issueKey}::${ticket.resolution}`] = 'transition ignored resolution ' + ticket.resolution;
+            //     }
+            // }
+
+            const doTransition = await jira.transitionIssue(issueKey, body).catch(async (e) => {
+		if(e.statusCode === 401 || e.response.statusCode === 401) {
+		    // retry
+		    console.log(chalk.red.bold(`(Retry statuschange ${issueKey})`));
+		    return await jira.transitionIssue(issueKey, body).catch((e) => {
+			errTix[`${issueKey}::${wantStatus}`] = e.toString();
+			console.error(e.toString());
+			return false;
+		    });
+		} else {
+		    errTix[`${issueKey}::${wantStatus}`] = e.toString();
+                    console.error(e.toString());
+		}
+                return false;
+            });
+            if(doTransition === undefined) {
+                process.stdout.write('\r'+issueKey+':'+chalk.bold.blue(`${goodTransition.name}»${wantStatus}       \n`));
+            }
+        }
+
+        // TODO: create pseudo attachments for long comments
         // * ticket|time|author|field|oldvalue|newvalue
         // * 13828|1528927025850017|shane|comment|3|LGTM
         // COMMENTS
+        if(false) {
+            console.log('-- skipping comment update for now on ', id)
+        } else
         {
+            process.stdout.write(chalk.dim(`\r${issueKey} comments?   \r`));
             const comments = ((await allCommentsByTicket)[id])||[]; // at least []
+            process.stdout.write(chalk.dim(`\r${issueKey} comments…   \r`));
             const jiraComments = ((((jiraIssue||{}).fields.comment)||{}).comments) || []; // at least []
+            process.stdout.write(chalk.dim(`\r${issueKey} comments!   \r`));
             // console.log('LENGTHS', comments.length, jiraComments.length);
             // Too many comments?!
             if(comments.length< jiraComments.length) {
@@ -645,7 +891,7 @@ async function doit() {
                     const jiraComment = (jiraComments||{})[n++]; // Try to find nth comment or null
                     const errKey = `${issueKey}.${(jiraComment||{}).id || n}`;
                     // console.dir(comment);
-                    const jiraCommentOwner = config.reporterMap[comment.author];
+                    const jiraCommentOwner = await getReporterWithName(comment.author);
                     const commentAuthor = (jiraCommentOwner&&jiraCommentOwner.name)?`[~${jiraCommentOwner.name}]`:`${obfuscate(comment.author)}`;
                     let body = 
                         `h6. Trac Comment ${comment.oldvalue} by ${commentAuthor}—${new Date(comment.time/1000).toISOString()}\n` +
@@ -688,7 +934,12 @@ async function doit() {
                             // Can't not set the content.
                             fields.body = body;
                             const errKey = `${issueKey}.${n}`;
-                            console.dir(fields);
+                            if(false) {
+				console.dir(fields);
+			    } else {
+				console.log(chalk.dim.blue(`C${errKey}`));
+			    }
+			    
                             delete fields.body;  // body is in a separate param
                             const newComment = await jira.updateComment(issueKey, jiraComments[n-1].id, body, fields)
                             .catch((e) => {
@@ -703,30 +954,36 @@ async function doit() {
                 }
             }
         }
+        process.stdout.write(chalk.dim(`\r${id} attachments?   \r`));
 
         // ATTACHMENTS
         {
             const attaches = (await attachmentsByTicket)[id];
+            process.stdout.write(chalk.dim(`\r${id} attachments…   \r`));
             if(attaches && attaches.length) {
+                // console.dir({attaches, jattach: jiraIssue.fields.attachment});
                 // For each attachment
                 for(const attach of attaches) {
                     // console.dir(attach);
                     // Do we have this attachment already?
+                    const subpath = path.join(path.dirname(attach.filename),
+                    encodeURIComponent(path.basename(attach.filename))
+                        .replace(/\(/g,'%28')
+                        .replace(/\)/g,'%29')
+                        .replace(/'/g, '%27')
+                        .replace(/!/g, '%21'));
                     let foundCount = 0;
                     for(const jattach of (jiraIssue.fields.attachment || [])) {
-                        if(jattach.filename === attach.filename) {
+                        if(jattach.filename === attach.filename || jattach.filename === subpath) {
                             foundCount++;
-                        // } else {
-                        //     console.log('mismatch',jattach.filename, attach.filename);
+                            if(foundCount > 1) {
+                                console.error('Delete extra attachment ' + jattach.id + ' from ' + id);
+                                await deleteAttachment(jattach.id);
+                            }
                         }
                     }
                     if(foundCount === 0) {
                         // now we attach
-                        const subpath = attach.filename
-                            .replace(/ /g,'%20')
-                            .replace(/\[/g,'%5B')
-                            .replace(/\$/g,'%24')
-                            .replace(/\]/g,'%5D'); // hmm, do you think just maybe there might be a pattern here?
                         const filename = `${config.db.attachmentPath}/${id}/${subpath}`;
                         const attachResp = await jira.addAttachmentOnIssue(issueKey, fs.createReadStream(filename))
                         .catch((e) => {
@@ -734,14 +991,19 @@ async function doit() {
                             return null;
                         });
                         if(attachResp ) {
-                            console.dir(attachResp);
+                            const ticketId = id;
+                            if(attachResp && attachResp.length === 1) {
+                                const {id, filename, size, mimeType} = attachResp[0];
+                                console.log(`${chalk.dim(ticketId)} + ${chalk.bold.blue([id, filename, Number(size).toLocaleString()+'b', mimeType].join(' '))}\n`);
+                            } else {
+                                console.dir({attachResp});
+                            }
                         }
                     }
                 }
             }
         }                        
     }
-
 }
 
 /**
@@ -752,7 +1014,7 @@ function postscript() {
     if(errTix && Object.keys(errTix).length > 0) {
         process.exitCode = 1;
         console.dir(errTix, {depth: Infinity, color: true});
-        console.error(`Error in ${Object.keys(errTix).length} tickets.`);
+        console.error(`${chalk.red('Error')} in ${Object.keys(errTix).length} tickets.`);
     }
     if(updTix) {
         console.log(`Updated ${Object.keys(updTix).length}/${scanno} tickets.`);
@@ -761,7 +1023,13 @@ function postscript() {
 
 doit()
 .then((x) => {
-    console.dir(x);
+    console.log();
+    if(x) {
+        console.dir(x);
+    } else {
+        console.log(chalk.bold.green('OK!'));
+    }
+    
     postscript();
     
 }, (e) => {
@@ -771,3 +1039,19 @@ doit()
         postscript();
     }
 });
+
+Promise.all([
+    allCommentsByTicket,
+
+    attachmentsByTicket,
+    allFields,
+    project, issueTypes, ticketCount, components, priorities, versions, statuses, nameToIssueType,
+jira, allTickets,
+
+    _nameToComponent,
+    _nameToPriority,
+    _nameToVersion,
+    _nameToStatus,
+    
+
+    ]).then(() => {}, (e) => console.error(e))
