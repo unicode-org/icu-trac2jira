@@ -31,6 +31,9 @@ Notes:
 
 - this is an incremental conversion. you can run it lots of times.
 
+- you might want to turn off email notification for the duration.
+    - just saying.
+
 - to just convert 1 ticket, etc. use a SQL query: `node try.js 'where id=13472'`
 
 - run `node try.js` to run the converter on ALL tickets.
