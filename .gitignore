@@ -4,3 +4,6 @@
 /tests/old2new-persist-out.json
 /local*
 /jiramap.tsv
+/unknownUsers.json
+/new-unknownUsers.csv
+/unknownContest.json

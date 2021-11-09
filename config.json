@@ -4,7 +4,7 @@
         "attachmentPath": "/Users/srl/src/uni-backups/backups/backup-cldr-trac/attachments/ticket/"
     },
     "project": {
-        "name": "TEST"
+        "name": "CLDR"
     },
     "mapFields": {
         "id": "tracId",
@@ -45,6 +45,6 @@
         "public": null
     },
     "xrefLinkType": {
-        "id": "10003" 
+        "id": "10003"
     }
 }
