@@ -41,6 +41,8 @@ Notes:
 
 - yes `npm t` will run tests.  Tests. There are tests?!
 
+- postscript: `node fixReporter.js` will try to fix the Reporter field from tracReporter
+  (Needs `unknownUsers.csv`  table mapping from trac->jira)
 
 - Copyright (C) 2016 and later: Unicode, Inc. and others.
 - License & terms of use: http://www.unicode.org/copyright.html
